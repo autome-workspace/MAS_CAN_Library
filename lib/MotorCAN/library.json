@@ -1,0 +1,9 @@
+{
+  "name": "MotorCAN",
+  "version": "1.0.0",
+  "description": "ESP32 master library for the MAS 1 Mbps CAN protocol",
+  "keywords": ["can", "twai", "servo", "motor", "esp32"],
+  "frameworks": ["arduino"],
+  "platforms": ["espressif32"],
+  "headers": ["MasCan.h", "MotorCAN.h"]
+}
