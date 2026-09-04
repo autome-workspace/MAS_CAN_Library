@@ -1,182 +1,115 @@
-# MAS CAN Library
+# MAS CAN Firmware
 
-ESP32 の TWAI（CAN）コントローラーから、CAN 接続されたモーターへ電流指令とショートブレーキ指令を送信する Arduino 向けライブラリです。
+MASのロボット向けCANデバイスのファームウェアと通信仕様を管理するリポジトリです。現在は、サーボ／DCモーター用のRP2040ファームウェアと、DCモータードライバー用のSTM32ファームウェアを収録しています。
 
-## 主な機能
+> [!WARNING]
+> モーターやサーボは、主制御がすでに指令を送信している状態で基板を起動すると動き始める可能性があります。配線、書き込み、抜き差しを行う前に主制御を停止するか、E-stopを有効にしてください。
 
-- モーター 1～16 への電流指令
-- モーター 1～16 へのショートブレーキ指令
-- CAN 2.0 標準フレーム（11 bit ID）を使用
-- ESP32 標準の TWAI ドライバーを利用
+## 収録内容
 
-## 動作環境
+| ディレクトリ | 対象 | 主な機能 | 開発環境 |
+|---|---|---|---|
+| [`firmware/CAN-Servo`](firmware/CAN-Servo/) | RP2040-Zero | サーボ8ch、HブリッジDCモーター4ch | PlatformIO / Arduino-Pico |
+| [`firmware/CAN_MD`](firmware/CAN_MD/) | STM32F042F6 | DCモーター1chの電流・duty制御、短絡ブレーキ、電流FB | CMakeまたはSTM32CubeIDE |
+| [`test_code`](test_code/) | ESP32 | 旧`MotorCAN`ライブラリの使用例 | 参考用 |
 
-- ESP32
-- Arduino framework for ESP32
-- `driver/twai.h` を利用できる ESP32 ボードパッケージ
-- 1 Mbps に対応した CAN トランシーバー
+> [!NOTE]
+> 旧ESP32向け`MotorCAN`ライブラリは現在のツリーには含まれていません。そのため、`test_code/main.cpp`はそのままではビルドできません。
 
-> [!IMPORTANT]
-> ESP32 の GPIO を CAN_H / CAN_L に直接接続することはできません。ESP32 と CAN バスの間に、3.3 V ロジックに対応した CAN トランシーバーを接続してください。また、バスの両端には適切な終端抵抗（一般に 120 Ω）が必要です。
+## 共通CAN仕様
 
-## ディレクトリ構成
+- CAN 2.0標準フレーム（11 bit ID）
+- ビットレート: 1 Mbps
+- 複数byte値: big-endian
+- ID構成: `class(3 bit) | group(5 bit) | node(3 bit)`
+- 駆動指令が100 ms途絶した場合は出力を停止
+- E-stop: ID `0x000`。受信時はDLCにかかわらず直ちに出力を停止してラッチ
+- E-stop解除: ID `0x001`、DLC 3、データ `63 6C 72`（ASCII `clr`）
 
-```text
-MAS_CAN_Library/
-├── lib/
-│   └── MotorCAN/
-│       ├── MotorCAN.cpp
-│       └── MotorCAN.h
-└── test_code/
-    └── main.cpp
-```
-
-## インストール
-
-### PlatformIO
-
-このリポジトリを PlatformIO プロジェクトとして使用する場合は、`lib/MotorCAN` をそのままプロジェクトの `lib` ディレクトリ内に配置します。
+CAN IDは次の式で生成します。
 
 ```text
-your_project/
-├── lib/
-│   └── MotorCAN/
-│       ├── MotorCAN.cpp
-│       └── MotorCAN.h
-└── src/
-    └── main.cpp
+can_id = (class << 8) | (group << 3) | node
 ```
 
-### Arduino IDE
+駆動指令は`class = 2`、`node = 0`です。各ファームウェアの詳細なデータ形式と例外処理は、以下の仕様書を参照してください。
 
-`lib/MotorCAN` フォルダーを Arduino のスケッチブックにある `libraries` フォルダーへコピーし、Arduino IDE を再起動します。
+- CAN-Servo: [`firmware/CAN-Servo/main.md`](firmware/CAN-Servo/main.md)
+- CAN_MD: [`firmware/CAN_MD/protocol.md`](firmware/CAN_MD/protocol.md)
 
+> [!CAUTION]
+> 現在、group 12～19の用途は両ファームウェアで一致していません。CAN-Servoではgroup 12～15をモーターduty、CAN_MDではgroup 12～15を短絡ブレーキ、group 16～19をdutyとして使用します。同じCANバスへ接続する場合は、意図しない出力を防ぐため、割り当てを必ず確認してください。
 
-## 基本的な使い方
+## CAN-Servo
 
-```cpp
-#include <Arduino.h>
-#include "MotorCAN.h"
+RP2040-ZeroとATA6561を使用し、サーボ8chとDCモーター4chを制御します。
 
-MotorCAN motorCAN(GPIO_NUM_5, GPIO_NUM_4);  // TX, RX
-bool motorCANReady = false;
+### 既定設定
 
-void setup() {
-    Serial.begin(115200);
-
-    motorCANReady = motorCAN.begin();
-    if (!motorCANReady) {
-        Serial.printf("TWAI initialization failed: %d\n",
-                      static_cast<int>(motorCAN.lastError()));
-    }
-}
-
-void loop() {
-    if (!motorCANReady) {
-        delay(1000);
-        return;
-    }
-
-    // モーター 1 に 20 mA の電流指令を送信
-    if (!motorCAN.setCurrent(1, 20)) {
-        Serial.printf("CAN transmission failed: %d\n",
-                      static_cast<int>(motorCAN.lastError()));
-    }
-
-    delay(20);
-}
-```
-
-`begin()` は TWAI ドライバーを 1 Mbps、ノーマルモードで初期化して開始します。戻り値が `false` の場合は、それ以降の送信を行わず `lastError()` を確認してください。
-
-### コンストラクター
-
-```cpp
-MotorCAN(gpio_num_t txPin, gpio_num_t rxPin);
-```
-
-使用する TWAI の TX GPIO と RX GPIO を指定します。
-
-### `begin()`
-
-```cpp
-bool begin();
-```
-
-TWAI ドライバーをインストールし、通信を開始します。通信速度は **1 Mbps 固定**です。成功時は `true`、失敗時は `false` を返します。
-
-### `setCurrent()`
-
-```cpp
-bool setCurrent(uint8_t motorNumber, int16_t currentMilliAmps);
-```
-
-指定したモーターへ電流指令を送信します。
-
-| 引数 | 内容 |
+| 項目 | 値 |
 |---|---|
-| `motorNumber` | モーター番号（1～16） |
-| `currentMilliAmps` | 電流指令値 [mA]（符号付き 16 bit） |
+| CAN TX / RX | GP0 / GP1 |
+| サーボ出力（GN1～GN8） | GP29, GP28, GP27, GP26, GP15, GP14, GP13, GP12 |
+| モーター出力ペア（GN1～GN4） | GP10/11, GP8/9, GP6/7, GP4/5 |
+| サーボgroup / CAN ID | 20 / `0x2A0` |
+| モーターduty group / CAN ID | 12 / `0x260` |
 
-送信成功時は `true`、失敗時は `false` を返します。電流値の許容範囲や符号と回転方向の関係は、接続するモーター側の仕様に従ってください。
+サーボ指令は8 byte固定です。各byteの`0～200`を500～2500 µsのパルス幅へ変換し、`255`で該当出力を停止します。モーター指令は4個の符号付き16 bit値をbig-endianで格納し、符号を回転方向、絶対値をPWM dutyとして扱います。
 
-### `setShortBrake()`
+オンボードLEDは、待機中が緑、有効な指令の受信中が青、E-stopラッチ中が赤です。
 
-```cpp
-bool setShortBrake(uint8_t motorNumber, bool enabled);
+### ビルドと書き込み
+
+PlatformIO CLIをインストールした環境で実行します。初回ビルド時にはArduino-PicoとACAN2040が取得されます。
+
+```sh
+cd firmware/CAN-Servo
+pio run
+pio run --target upload
 ```
 
-指定したモーターのショートブレーキ状態を送信します。
+groupを変更する場合は、[`platformio.ini`](firmware/CAN-Servo/platformio.ini)の`SERVO_CAN_GROUP`と`MOTOR_CAN_GROUP`を編集してください。
 
-- `enabled = true`: ショートブレーキを適用
-- `enabled = false`: ブレーキを解除してコースト状態に移行
+## CAN_MD
 
-この指令は受信側で保持されることを前提とした指令です。
+STM32F042F6とDRV8701Pを使用する1ch DCモータードライバーです。
 
-### `lastError()`
+### 主な仕様
 
-```cpp
-esp_err_t lastError() const;
+- 3 bit DIPスイッチで基板番号1～8を設定（`000`は8）
+- 電流指令: `-2400～2400 mA`（範囲外は飽和）
+- duty指令: 符号付き16 bit全域を約`-100～+100%`へ変換
+- 短絡ブレーキ: `0`で解除、`1`で適用
+- 電流フィードバック: 200 Hz、DLC 2、mA単位
+- bus-offからはbxCANのAutoBusOffで自動復帰
+
+基板番号`n`に対するgroupとnodeは次のように決まります。
+
+```text
+group(current) = 0  + floor((n - 1) / 4)
+group(brake)   = 12 + floor((n - 1) / 4)
+group(duty)    = 16 + floor((n - 1) / 4)
+node           = 1  + ((n - 1) % 4)   # フィードバック用
 ```
 
-直前に実行した初期化または送信処理の ESP-IDF エラーコードを返します。たとえば、モーター番号が 1～16 の範囲外の場合は `ESP_ERR_INVALID_ARG` になります。
+### CMakeでビルド
 
-## 使用例
+Arm GNU ToolchainとNinjaが必要です。
 
-```cpp
-motorCAN.setCurrent(1, 20);        // モーター 1 に 20 mA
-motorCAN.setCurrent(2, -100);      // モーター 2 に -100 mA
-motorCAN.setShortBrake(1, true);   // モーター 1 のブレーキを適用
-motorCAN.setShortBrake(1, false);  // モーター 1 のブレーキを解除
+```sh
+cd firmware/CAN_MD
+cmake --preset Debug
+cmake --build --preset Debug
 ```
 
-## CAN フレーム仕様
+Releaseビルドでは、両コマンドの`Debug`を`Release`へ置き換えます。STM32CubeIDE用プロジェクトとIAR EWARM用プロジェクトも同ディレクトリに含まれています。
 
-モーターは 4 台ずつのグループに分かれ、各モーターの値は 2 byte のビッグエンディアン形式で格納されます。
+### 既知のハードウェア制約
 
-| 指令 | モーター番号 | CAN ID |
-|---|---:|---:|
-| 電流 | 1～4 | `0x200` |
-| 電流 | 5～8 | `0x208` |
-| 電流 | 9～12 | `0x210` |
-| 電流 | 13～16 | `0x218` |
-| ショートブレーキ | 1～4 | `0x260` |
-| ショートブレーキ | 5～8 | `0x268` |
-| ショートブレーキ | 9～12 | `0x270` |
-| ショートブレーキ | 13～16 | `0x278` |
+- 現状はHSE発振不良のため16 MHz HSIを使用しており、CAN仕様で推奨する水晶クロックとクロック偏差の条件を満たしていません。水晶回路の修理後にHSEへ戻す必要があります。
+- PB8/BOOT0のLowが保証されず、リセット時に内蔵ブートROMへ入る場合があります。PB8/BOOT0へ直接プルダウン抵抗を追加してください。
+- 基板全体の安全な連続電流定格は未確定です。回路上の理論値ではなく、ファームウェアの`±2.4 A`制限を上限として扱ってください。
 
-ショートブレーキの値は、適用時が `1`、解除時が `0` です。
+## 配線上の注意
 
-### 同一グループ内の送信に関する注意
-
-`setCurrent()` と `setShortBrake()` は、指定したモーターのスロットまでを含む DLC でフレームを送信し、それより前のスロットを `0` で埋めます。
-
-たとえばモーター 2 へ指令を送ると、同じグループにあるモーター 1 のスロットには `0` が入ります。このため、同一グループ内の複数モーターを制御する場合、後ろの番号への送信によって前の番号の指令が意図せず変化する可能性があります。アプリケーション側で送信順序や送信タイミングを管理してください。
-
-## 注意事項
-
-- モーター番号に指定できるのは 1～16 です。
-- 本ライブラリの通信速度は 1 Mbps 固定です。接続するすべての機器で通信速度を一致させてください。
-- `begin()` を複数回呼び出すことは想定していません。
-- 現在の API には TWAI ドライバーを停止・アンインストールする終了処理はありません。
-- CAN バス上で ACK を返す別ノードが存在しない場合、通信は正常に成立しません。
+MCUのGPIOをCAN_H / CAN_Lへ直接接続することはできません。対応するCANトランシーバーを介して接続し、バスの両端を120 Ωで終端してください。正常な通信には、同じビットレートで動作しACKを返す別ノードも必要です。
