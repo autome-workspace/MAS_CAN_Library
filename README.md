@@ -1,6 +1,6 @@
-# MAS CAN Firmware
+# MAS CAN Library / Firmware
 
-MASのロボット向けCANデバイスのファームウェアと通信仕様を管理するリポジトリです。現在は、サーボ／DCモーター用のRP2040ファームウェアと、DCモータードライバー用のSTM32ファームウェアを収録しています。
+MASのロボット向けCAN通信ライブラリ、デバイスファームウェア、通信仕様を管理するリポジトリです。ESP32から指令を送る`MotorCAN`ライブラリと、RP2040／STM32を使用した受信側ファームウェアを収録しています。
 
 > [!WARNING]
 > モーターやサーボは、主制御がすでに指令を送信している状態で基板を起動すると動き始める可能性があります。配線、書き込み、抜き差しを行う前に主制御を停止するか、E-stopを有効にしてください。
@@ -9,12 +9,10 @@ MASのロボット向けCANデバイスのファームウェアと通信仕様�
 
 | ディレクトリ | 対象 | 主な機能 | 開発環境 |
 |---|---|---|---|
+| [`lib/MotorCAN`](lib/MotorCAN/) | ESP32 | CAN指令の20 ms周期送信、E-stop、CAN送受信 | Arduino / PlatformIO |
 | [`firmware/CAN-Servo`](firmware/CAN-Servo/) | RP2040-Zero | サーボ8ch、HブリッジDCモーター4ch | PlatformIO / Arduino-Pico |
 | [`firmware/CAN_MD`](firmware/CAN_MD/) | STM32F042F6 | DCモーター1chの電流・duty制御、短絡ブレーキ、電流FB | CMakeまたはSTM32CubeIDE |
-| [`test_code`](test_code/) | ESP32 | 旧`MotorCAN`ライブラリの使用例 | 参考用 |
-
-> [!NOTE]
-> 旧ESP32向け`MotorCAN`ライブラリは現在のツリーには含まれていません。そのため、`test_code/main.cpp`はそのままではビルドできません。
+| [`test_code`](test_code/) | ESP32 | `MotorCAN`の最小使用例 | Arduino / PlatformIO |
 
 ## 共通CAN仕様
 
@@ -38,7 +36,76 @@ can_id = (class << 8) | (group << 3) | node
 - CAN_MD: [`firmware/CAN_MD/protocol.md`](firmware/CAN_MD/protocol.md)
 
 > [!CAUTION]
-> 現在、group 12～19の用途は両ファームウェアで一致していません。CAN-Servoではgroup 12～15をモーターduty、CAN_MDではgroup 12～15を短絡ブレーキ、group 16～19をdutyとして使用します。同じCANバスへ接続する場合は、意図しない出力を防ぐため、割り当てを必ず確認してください。
+> 現在、group 12～19の用途は両ファームウェアで一致していません。送信ライブラリとCAN-Servoではgroup 12～15をモーターduty、group 16～19を短絡ブレーキとして扱いますが、CAN_MDでは両者が逆です。現状の`setDuty()`／`setShortBrake()`をCAN_MDへそのまま使用すると誤動作するため、同じCANバスへ接続する前に割り当てを統一してください。
+
+## ESP32送信ライブラリ
+
+`MotorCAN`はESP32のTWAIドライバーを使用するArduino向けライブラリです。推奨名は`MasCan`で、既存コードとの互換性のため`MotorCAN`も使用できます。TXはGPIO 5、RXはGPIO 4が既定値です。
+
+受信基板の100 msタイムアウトを防ぐため、設定された指令を内部FreeRTOSタスクから20 ms周期で自動再送します。アプリケーションの`loop()`で繰り返し送信する必要はありません。
+
+### インストール
+
+[`lib/MotorCAN`](lib/MotorCAN/)ディレクトリを、PlatformIOプロジェクトの`lib/MotorCAN`へコピーしてください。
+
+```text
+your-project/
+├── lib/
+│   └── MotorCAN/
+│       ├── MasCan.h
+│       ├── MotorCAN.h
+│       ├── MotorCAN.cpp
+│       └── library.json
+└── src/
+    └── main.cpp
+```
+
+Arduino IDEでは、同ディレクトリをスケッチブックの`libraries/MotorCAN`へコピーしてIDEを再起動します。
+
+### 最小例
+
+```cpp
+#include <Arduino.h>
+#include <MasCan.h>
+
+MasCan can;  // TX: GPIO 5、RX: GPIO 4
+
+void setup() {
+    Serial.begin(115200);
+    if (!can.begin()) {
+        Serial.printf("CAN initialization failed: %d\n", can.lastError());
+        return;
+    }
+
+    can.setCurrent(1, 100);       // モーター1へ100 mA
+    can.setServoAngle(3, 90.0f);  // サーボCH3を90度へ
+}
+
+void loop() {}
+```
+
+別のGPIOを使用する場合は、コンストラクターへTX、RXの順で指定します。
+
+```cpp
+MasCan can(GPIO_NUM_21, GPIO_NUM_22);
+```
+
+### 主なAPI
+
+| API | 内容 |
+|---|---|
+| `begin()` / `end()` | TWAIドライバーと自動送信タスクを開始／停止 |
+| `setCurrent()` / `setSpeed()` / `setPosition()` | モーター1～16の電流／速度／位置指令を設定 |
+| `setDuty()` / `setShortBrake()` | モーター1～16のduty／短絡ブレーキ指令を設定 |
+| `setServo()` / `setServoPulseUs()` / `setServoAngle()` | サーボCH 1～32の出力を設定 |
+| `disableServo()` | 値`255`を周期送信してサーボパルスを停止 |
+| `setAir()` | エアー出力CH 1～32を設定 |
+| `releaseMotor()` / `releaseServo()` / `releaseAir()` | 指定出力の周期送信を解除 |
+| `releaseAll()` | すべての周期送信を解除 |
+| `emergencyStop()` / `clearEmergencyStop()` | E-stopを送信／解除 |
+| `sendRaw()` / `receive()` | 任意の標準CANフレームを送信／受信 |
+
+`emergencyStop()`を呼ぶとローカルでもE-stopがラッチされ、`clearEmergencyStop()`の送信に成功するまで新しい出力設定は拒否されます。詳しい使用例は[`lib/MotorCAN/README.md`](lib/MotorCAN/README.md)を参照してください。
 
 ## CAN-Servo
 
