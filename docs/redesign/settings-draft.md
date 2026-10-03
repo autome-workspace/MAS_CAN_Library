@@ -236,7 +236,7 @@
 
 | 番号 | 値の並び |
 |---|---|
-| 0 | 8 byte すべてが固有 ID。STM32 の 96 bit は、上位 32 bit と下位 32 bit を XOR して 64 bit に畳む |
+| 0 | 8 byte すべてが固有 ID。~~STM32 の 96 bit は、上位 32 bit と下位 32 bit を XOR して 64 bit に畳む~~ → 畳み方は requirements.md の D22（2026-10-03） |
 | 2、3 | byte 3 ＝ 0、byte 4 ＝ 主、byte 5 ＝ 副、byte 6 ＝ 修正（1.2.3 なら `00 01 02 03`） |
 | 4 | byte 3–4 ＝ 先頭の ch、byte 5–6 ＝ ch の数（どちらも uint16） |
 | 5 | bit ごと。1 を書いた bit が消える。まだ続いている異常の bit は、すぐまた立つ |
