@@ -1,0 +1,3 @@
+# CubeMX が生成するので整形しない
+DisableFormat: true
+SortIncludes: Never

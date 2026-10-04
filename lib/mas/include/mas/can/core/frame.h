@@ -15,9 +15,9 @@ extern "C" {
 
 /* CAN のフレーム 1 本（標準 ID、データフレーム）。 */
 typedef struct {
-    uint16_t id;      /* 11 bit */
-    uint8_t dlc;      /* 0〜8 */
-    bool rtr;         /* リモートフレームか（D35: 0x000 以外は無視する） */
+    uint16_t id; /* 11 bit */
+    uint8_t dlc; /* 0〜8 */
+    bool rtr;    /* リモートフレームか（D35: 0x000 以外は無視する） */
     uint8_t data[8];
 } mas_can_frame_t;
 

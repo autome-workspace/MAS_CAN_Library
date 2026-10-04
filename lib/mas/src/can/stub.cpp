@@ -23,8 +23,8 @@ void Md::setDutyRaw(int16_t) {}
 void Md::setCurrentResolution(float) {}
 void Md::setSpeedResolution(float) {}
 const Md::Feedback &Md::feedback() const {
-  static const Feedback empty{};
-  return empty;
+    static const Feedback empty{};
+    return empty;
 }
 bool Md::online() const { return false; }
 bool Md::ready() const { return false; }

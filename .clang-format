@@ -1,0 +1,7 @@
+# 整形の決まり（2026-10-05、ユーザ）: Google を土台に、インデントを 4 にする
+BasedOnStyle: Google
+IndentWidth: 4
+AccessModifierOffset: -2
+ColumnLimit: 100
+DerivePointerAlignment: false
+PointerAlignment: Right
