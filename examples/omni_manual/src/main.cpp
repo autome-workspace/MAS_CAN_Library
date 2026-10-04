@@ -71,6 +71,7 @@ void loop() {
 
   // ---- 非常停止 ----
   // コントローラには非常停止のボタンが無いので、ここでは L1 と R1 の同時押しにする。
+  // held(): 押されている、pressed(): 前回の update() からの間に押された瞬間があった（A6）。
   // 【案】estop() は E-stop を送る。clearEstop() は、指令を止める値に戻してから解除を送る（D21）。
   if (pad.held(mas::Button::L1) && pad.held(mas::Button::R1)) {
     can.estop();
@@ -81,7 +82,8 @@ void loop() {
 
   // ---- 操作 ----
   float w[4] = {0, 0, 0, 0};  // 各車輪の目標（rad/s）
-  // 【案】無線が切れていれば connected() が false。スティックの値は 0 になっている。
+  // 無線が切れたか、200 ms フレームが来なければ connected() が false（A6）。
+  // スティックは -1.0〜+1.0。デッドゾーンが要るなら setup() で pad.setDeadzone(0.05f)。
   if (pad.connected()) {
     float vx = pad.leftY() * kMaxSpeed_mps;   // 前後（-1.0〜+1.0 に直した値）
     float vy = -pad.leftX() * kMaxSpeed_mps;  // 左右（左が正）
