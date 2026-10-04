@@ -28,13 +28,13 @@ constexpr float kMaxTurn_radps = 3.0f;   // スティックを倒しきったと
 // 車輪の向き（X 字。前から反時計回りに 45°、135°、225°、315°）
 constexpr float kWheelAngle_rad[4] = {PI / 4, 3 * PI / 4, 5 * PI / 4, 7 * PI / 4};
 
-// 車体の速度（m/s、rad/s）から、各車輪の出力軸の rpm を計算する（逆運動学）。
+// 車体の速度（m/s、rad/s）から、各車輪の出力軸の角速度（rad/s）を計算する（逆運動学）。
 // ここは機体ごとの計算なので、ライブラリには入れない（判断は主制御が持つ）。
-static void omniInverse(float vx, float vy, float omega, float rpm_out[4]) {
+static void omniInverse(float vx, float vy, float omega, float w_out[4]) {
   for (int i = 0; i < 4; i++) {
     float v = -sinf(kWheelAngle_rad[i]) * vx + cosf(kWheelAngle_rad[i]) * vy +
               kBodyRadius_m * omega;  // 車輪の接線方向の速さ（m/s）
-    rpm_out[i] = v / kWheelRadius_m * 60.0f / (2 * PI);
+    w_out[i] = v / kWheelRadius_m;  // 出力軸の角速度（rad/s）
   }
 }
 
@@ -48,8 +48,8 @@ void setup() {
   for (auto &w : wheel) {
     // 【案】保存しない設定（主制御の「選択」）は、ここで書く。
     // ライブラリが覚えておき、基板の再起動（起動の知らせ）を見たら自動で送り直す。
-    // 足回りは最高でも数百 rpm なので、速度の単位を 0.1 rpm にして細かくする。
-    w.setSpeedResolution(0.1f);  // rpm/LSB（設定 49）
+    // 足回りは遅いので、速度の分解能を細かくする（0.01 rad/s/LSB ≈ 0.095 rpm）。
+    w.setSpeedResolution(0.01f);  // rad/s/LSB（設定 49。ライブラリが rpm/LSB に換算して書く）
 
     // 【案】保存する設定（減速比など「事実」）は、普段はスケッチに書かない。
     // 基板を組んだときに、PC のツールなどで一度だけ書いて保存しておく。
@@ -78,19 +78,19 @@ void loop() {
   }
 
   // ---- 操作 ----
-  float rpm[4] = {0, 0, 0, 0};
+  float w[4] = {0, 0, 0, 0};  // 各車輪の目標（rad/s）
   // 【案】無線が切れていれば connected() が false。スティックの値は 0 になっている。
   if (pad.connected()) {
     float vx = pad.leftY() * kMaxSpeed_mps;   // 前後（-1.0〜+1.0 に直した値）
     float vy = -pad.leftX() * kMaxSpeed_mps;  // 左右（左が正）
     float omega = -pad.rightX() * kMaxTurn_radps;
-    omniInverse(vx, vy, omega, rpm);
+    omniInverse(vx, vy, omega, w);
   }
 
   for (int i = 0; i < 4; i++) {
-    // 【案】指令は物理の単位で渡す。LSB への換算と周期送信はライブラリの仕事。
+    // 指令は SI で渡す（A2）。LSB への換算と周期送信はライブラリの仕事。
     // 同じ値を毎回呼んでもよいし、変わったときだけ呼んでもよい。
-    wheel[i].setSpeed(rpm[i]);
+    wheel[i].setSpeed(w[i]);
   }
 
   // ---- 様子を見る（10 Hz で表示） ----
@@ -99,11 +99,11 @@ void loop() {
     last_print = millis();
     for (int i = 0; i < 4; i++) {
       auto &w = wheel[i];
-      // 【案】FB は最後に届いた値。物理の単位で返す。
-      // position() は折り返しを積み上げた回転数（電源投入時の位置が 0）。
-      Serial.printf("[%d] %s %7.1f rpm %6.0f mA %8.3f rev%s%s\n", i,
+      // FB は最後に届いた値。SI で返す（A2）。
+      // position() は折り返しを積み上げたカウント（int64、1 回転 ＝ 65536、電源投入時が 0）。
+      Serial.printf("[%d] %s %7.2f rad/s %6.2f A %10lld cnt%s%s\n", i,
                     w.online() ? "ok" : "--",  // 【案】FB が途絶えていないか
-                    w.speed(), w.current(), w.position(),
+                    w.speed(), w.current(), (long long)w.position(),
                     w.stopped() ? " 停止中" : "",       // FB の bit 4
                     w.hasFault() ? " 異常あり" : "");   // FB の bit 0
     }
