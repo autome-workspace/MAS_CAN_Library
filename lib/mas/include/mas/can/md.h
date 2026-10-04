@@ -17,6 +17,24 @@ constexpr double countsToRad(int64_t counts) { return counts * (2.0 * 3.14159265
 
 class Md {
  public:
+  // FB のまとめ（A11）。バスの中に ch ごとに 1 つあり、update() の中だけで書き換わる。
+  struct Feedback {
+    float current = 0;         // [A]（currentValid() が false なら 0）
+    float speed = 0;           // [rad/s]
+    int64_t position = 0;      // 積み上げたカウント（電源投入時が 0）
+    float duty = 0;            // 実際に出している duty（-1.0〜+1.0）
+    uint8_t status = 0;        // 状態の byte（spec-draft.md §7.3）
+    uint32_t receivedUs = 0;   // 最後に受けた時刻 [µs]
+    bool online = false;       // FB が途絶えていない
+
+    bool hasFault() const { return status & 0x01; }
+    bool speedValid() const { return !(status & 0x02); }
+    bool currentValid() const { return !(status & 0x04); }
+    bool currentLimited() const { return status & 0x08; }
+    bool stopped() const { return status & 0x10; }
+    bool estopLatched() const { return status & 0x20; }
+  };
+
   Md() = default;
   uint8_t ch() const { return ch_; }
 
@@ -36,6 +54,10 @@ class Md {
   void setSpeedResolution(float radps_per_lsb);   // 設定 49
 
   // ---- FB（最後に届いた値） ----
+  // まとめて読む（A11）。コピーしない参照。update() をまたいで持つと新しい値に変わる。
+  const Feedback &feedback() const;
+
+  // 1 つずつ読む（feedback() と同じものを見る）
   bool online() const;     // FB が途絶えていない
   bool ready() const;      // 保存しない設定が書けたと確かめた（false の間は止める値を送る）
   float current() const;   // A（測れない基板では 0。currentValid() で確かめる）
