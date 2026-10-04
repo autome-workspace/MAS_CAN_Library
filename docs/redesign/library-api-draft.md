@@ -1,6 +1,6 @@
 # 主制御のライブラリの API（検討中）
 
-状態: **検討中**（2026-10-04 開始）。使う側のたたき台 [examples/omni_manual/src/main.cpp](../../examples/omni_manual/src/main.cpp)（オムニ 4 輪、エンコーダ付き MD、コントローラ、ESP32-S3、ATA6561）を書きながら決める。ライブラリの 2 層の構成は [requirements.md](requirements.md) の D3・D4。
+状態: **検討中**（2026-10-04 開始）。使う側のたたき台 [examples/api_tour/src/main.cpp](../../examples/api_tour/src/main.cpp)（ESP32-S3、ATA6561。API をひととおり使う例）を書きながら決める。ライブラリの 2 層の構成は [requirements.md](requirements.md) の D3・D4。
 
 - 置き場所は当面このリポジトリの `lib/`。ハードウェアに依存する層としない層を分ける。部の mas libraries に後で移す可能性がある（[md-firmware-draft.md](md-firmware-draft.md) §3）。
 
