@@ -6,18 +6,24 @@
 // 配線: ESP32-S3 ── ATA6561 ── CAN バス（MD × 4、コントローラの受信基板）
 
 #include <Arduino.h>
-#include <mascan.h>  // 【案】新しいライブラリの入口。名前空間は mas
+#include <mas/can.h>  // 名前空間は mas::can
+
+namespace mcan = mas::can;  // 短い別名（好みで）
 
 // ---- バスとつながる相手 -------------------------------------------------
 
-// CAN のバス 1 本につき 1 つ（A1。I2C や SPI と分けるため CanBus）。TWAI の初期化、
-// SYNC（20 Hz）と指令（100 Hz）の周期送信、受信の振り分け、レート制限を受け持つ（update() の中で）。
-mas::CanBus can;
+// CAN のコントローラ（ESP32 の TWAI）。ライブラリはハードウェアに依存しないので、
+// ESP32 の部分はこのポートが受け持つ（A3）。
+mcan::Esp32Twai twai;
+
+// CAN のバス 1 本につき 1 つ（A1）。SYNC（20 Hz）と指令（100 Hz）の周期送信、
+// 受信の振り分け、レート制限を受け持つ（update() の中で）。
+mcan::Bus can;
 
 // 相手は「種類と ch」で指す（A1）。基板の枚数や DIP は知らなくてよい。
 // can.md(ch) は軽い取っ手（handle）を返し、中身（指令の値、FB）はバスが持つ。
-mas::Md wheel[4] = {can.md(0), can.md(1), can.md(2), can.md(3)};
-mas::Controller pad = can.controller(0);
+mcan::Md wheel[4] = {can.md(0), can.md(1), can.md(2), can.md(3)};
+mcan::Controller pad = can.controller(0);
 
 // ---- 機体の寸法 ---------------------------------------------------------
 
@@ -41,9 +47,10 @@ static void omniInverse(float vx, float vy, float omega, float w_out[4]) {
 void setup() {
   Serial.begin(115200);
 
-  // 【案】ピンを渡して始める。以後、update() のたびに SYNC と指令を送る。
-  // ATA6561 の STBY を MCU でつないでいる場合は、そのピンも渡す（無ければ省く）。
-  can.begin({.tx = GPIO_NUM_5, .rx = GPIO_NUM_4});
+  // ポートを始めてから、バスに渡す。以後、update() のたびに SYNC と指令を送る。
+  // 【案】ATA6561 の STBY を MCU でつないでいる場合は、ポートにそのピンも渡す。
+  twai.begin({GPIO_NUM_5, GPIO_NUM_4});  // TX、RX
+  can.begin(twai);
 
   for (auto &w : wheel) {
     // 保存しない設定（主制御の「選択」）は、ここで書く（A4）。関数は待たずに戻る。
@@ -75,10 +82,10 @@ void loop() {
   // estop() を呼ぶと、clearEstop() まで E-stop を 10 Hz で送り続ける（A8）。その間の指令は止める値。
   // clearEstop() は、指令を止める値に戻してから解除を送る（D21）。
   // ほかの送り手の E-stop を受けても estopped() は true になる（送り直しはしない）。
-  if (pad.held(mas::Button::L1) && pad.held(mas::Button::R1)) {
+  if (pad.held(mcan::Button::L1) && pad.held(mcan::Button::R1)) {
     can.estop();
   }
-  if (can.estopped() && pad.pressed(mas::Button::Up)) {
+  if (can.estopped() && pad.pressed(mcan::Button::Up)) {
     can.clearEstop();
   }
 
@@ -122,7 +129,7 @@ void loop() {
 // 新しく立った bit だけを update() の中からここへ渡す。再起動（bit 0）の後始末は
 // ライブラリが済ませるので、ここに届くのはそれ以外の異常だけ。
 // 確認したら md.clearFault() で消す（消すまで FB の bit 0 は立ったまま）。
-// can.onFault([](mas::Md &md, uint32_t newBits) {
+// can.onFault([](mcan::Md &md, uint32_t newBits) {
 //   Serial.printf("MD ch %d: 異常 0x%08lx\n", md.ch(), newBits);
 //   md.clearFault();
 // });
