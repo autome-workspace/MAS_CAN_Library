@@ -116,9 +116,11 @@ void loop() {
 
 // ---- ここから下は、必要な人だけ使う機能の例 ----
 
-// 【案】異常の詳細を知りたいとき（FB の bit 0 が立ったら、ライブラリが自動で読みに行く）。
-// 再起動（bit 0）の後始末（設定の送り直し、bit を消す）はライブラリが済ませるので、
-// ここに届くのはそれ以外の異常だけ。
-// can.onFault([](mas::Md &md, uint32_t detail) {
-//   Serial.printf("MD ch %d: 異常 0x%08lx\n", md.ch(), detail);
+// 異常を知りたいとき（A7）。FB の bit 0 が立つと、ライブラリが異常の詳細を読みに行き、
+// 新しく立った bit だけを update() の中からここへ渡す。再起動（bit 0）の後始末は
+// ライブラリが済ませるので、ここに届くのはそれ以外の異常だけ。
+// 確認したら md.clearFault() で消す（消すまで FB の bit 0 は立ったまま）。
+// can.onFault([](mas::Md &md, uint32_t newBits) {
+//   Serial.printf("MD ch %d: 異常 0x%08lx\n", md.ch(), newBits);
+//   md.clearFault();
 // });
