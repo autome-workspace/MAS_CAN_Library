@@ -10,14 +10,14 @@
 
 // ---- バスとつながる相手 -------------------------------------------------
 
-// 【案】バス 1 本につき 1 つ。TWAI の初期化、SYNC（20 Hz）の自動送信、
-// 指令の周期送信（100 Hz）、受信の振り分け、レート制限を受け持つ。
-mas::Bus bus;
+// CAN のバス 1 本につき 1 つ（A1。I2C や SPI と分けるため CanBus）。TWAI の初期化、
+// SYNC（20 Hz）の自動送信、指令の周期送信（100 Hz）、受信の振り分け、レート制限を受け持つ。
+mas::CanBus can;
 
-// 【案】相手は「種類と ch」で指す。基板の枚数や DIP は知らなくてよい。
-// オブジェクトは軽い取っ手（handle）で、中身はバスが持つ。
-mas::Md wheel[4] = {bus.md(0), bus.md(1), bus.md(2), bus.md(3)};
-mas::Controller pad = bus.controller(0);
+// 相手は「種類と ch」で指す（A1）。基板の枚数や DIP は知らなくてよい。
+// can.md(ch) は軽い取っ手（handle）を返し、中身（指令の値、FB）はバスが持つ。
+mas::Md wheel[4] = {can.md(0), can.md(1), can.md(2), can.md(3)};
+mas::Controller pad = can.controller(0);
 
 // ---- 機体の寸法 ---------------------------------------------------------
 
@@ -43,7 +43,7 @@ void setup() {
 
   // 【案】ピンを渡して始める。ここで SYNC の自動送信も始まる。
   // ATA6561 の STBY を MCU でつないでいる場合は、そのピンも渡す（無ければ省く）。
-  bus.begin({.tx = GPIO_NUM_5, .rx = GPIO_NUM_4});
+  can.begin({.tx = GPIO_NUM_5, .rx = GPIO_NUM_4});
 
   for (auto &w : wheel) {
     // 【案】保存しない設定（主制御の「選択」）は、ここで書く。
@@ -58,23 +58,23 @@ void setup() {
   }
 
   // 【案】基板がそろうのを待つ（FB が届いたか）。手動の機体なので、そろわなくても進む。
-  if (!bus.waitOnline(wheel, 4, /*timeout_ms=*/1000)) {
+  if (!can.waitOnline(wheel, 4, /*timeout_ms=*/1000)) {
     Serial.println("見つからない MD がある");
   }
 }
 
 void loop() {
   // 【案】既定ではライブラリが裏のタスクで送受信する（update を呼ばなくてよい）。
-  // 送るタイミングを自分で持ちたい人だけ、手動の形にして bus.update() を呼ぶ（D3）。
+  // 送るタイミングを自分で持ちたい人だけ、手動の形にして can.update() を呼ぶ（D3）。
 
   // ---- 非常停止 ----
   // コントローラには非常停止のボタンが無いので、ここでは L1 と R1 の同時押しにする。
   // 【案】estop() は E-stop を送る。clearEstop() は、指令を止める値に戻してから解除を送る（D21）。
   if (pad.held(mas::Button::L1) && pad.held(mas::Button::R1)) {
-    bus.estop();
+    can.estop();
   }
-  if (bus.estopped() && pad.pressed(mas::Button::Up)) {
-    bus.clearEstop();
+  if (can.estopped() && pad.pressed(mas::Button::Up)) {
+    can.clearEstop();
   }
 
   // ---- 操作 ----
@@ -115,6 +115,6 @@ void loop() {
 // 【案】異常の詳細を知りたいとき（FB の bit 0 が立ったら、ライブラリが自動で読みに行く）。
 // 再起動（bit 0）の後始末（設定の送り直し、bit を消す）はライブラリが済ませるので、
 // ここに届くのはそれ以外の異常だけ。
-// bus.onFault([](mas::Md &md, uint32_t detail) {
+// can.onFault([](mas::Md &md, uint32_t detail) {
 //   Serial.printf("MD ch %d: 異常 0x%08lx\n", md.ch(), detail);
 // });
