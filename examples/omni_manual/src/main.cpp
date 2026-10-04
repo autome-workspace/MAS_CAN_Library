@@ -72,7 +72,9 @@ void loop() {
   // ---- 非常停止 ----
   // コントローラには非常停止のボタンが無いので、ここでは L1 と R1 の同時押しにする。
   // held(): 押されている、pressed(): 前回の update() からの間に押された瞬間があった（A6）。
-  // 【案】estop() は E-stop を送る。clearEstop() は、指令を止める値に戻してから解除を送る（D21）。
+  // estop() を呼ぶと、clearEstop() まで E-stop を 10 Hz で送り続ける（A8）。その間の指令は止める値。
+  // clearEstop() は、指令を止める値に戻してから解除を送る（D21）。
+  // ほかの送り手の E-stop を受けても estopped() は true になる（送り直しはしない）。
   if (pad.held(mas::Button::L1) && pad.held(mas::Button::R1)) {
     can.estop();
   }
