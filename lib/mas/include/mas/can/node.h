@@ -9,7 +9,7 @@
  *     mas_can_node_tick(&node, now);
  *     out = mas_can_md_output(&node, 0) を見てモーターを動かす
  *     測った値を mas_can_md_set_measure(&node, 0, &m);
- *     while (mas_can_node_pop_tx(&node, &f)) CAN に送る
+ *     while ((f = mas_can_node_peek_tx(&node)) && CAN に送れた) mas_can_node_drop_tx(&node);
  *
  * 時刻はすべて µs（uint32_t、一周してよい）。単位は基板の中の単位（mA、rpm）。
  */
@@ -99,13 +99,29 @@ typedef struct {
 } mas_can_md_settings_t;
 
 /* ---- 中身（静的に置けるよう公開しているが、直接触らない） ---- */
+
+/* フラッシュに保存する、保存できる項目（P10 の「事実」）。 */
+typedef struct {
+    uint8_t reverse, stop_brake, encoder_reverse, valid;
+    uint32_t current_limit_ma, fb_rate_hz, encoder_cpr;
+    float gear_ratio, speed_kp, speed_ki, speed_kd, max_speed_rpm, max_accel_rpm_s;
+} mas_can_node_md_saved_t;
+
+typedef struct {
+    uint32_t magic;
+    uint32_t version;
+    mas_can_node_md_saved_t md[MAS_CAN_NODE_MD_MAX];
+    uint32_t crc;
+} mas_can_node_saved_t;
+
 typedef struct {
     mas_can_md_settings_t set;
-    mas_can_md_output_t out;
+    mas_can_md_output_t out; /* 最後に受けた指令から作った出力（止める理由は含まない） */
     mas_can_md_measure_t meas;
     uint8_t mode;         /* 最後に受けた指令の種類（FB の bit 6–7） */
     bool commanded;       /* 起動または止めた後に、有効な指令を受けたか */
     bool unsupported;     /* こなせない指令で止めている（D10） */
+    bool reset_pending;   /* 次の出力で reset_ctrl を立てる */
     uint32_t last_cmd_us; /* 最後に有効な指令を受けた時刻 */
     uint32_t last_fb_us;  /* 最後に FB を送った時刻 */
 } mas_can_node_md_t;
@@ -113,9 +129,11 @@ typedef struct {
 typedef struct {
     mas_can_node_config_t cfg;
     mas_can_node_md_t md[MAS_CAN_NODE_MD_MAX];
-    uint32_t fault; /* 異常の詳細（設定 5） */
-    bool estop;     /* E-stop でラッチ中 */
-    bool synced;    /* 最初の SYNC を受けた */
+    mas_can_node_saved_t saved; /* 保存した値の写し（保存のたびに丸ごと書く） */
+    uint32_t fault;             /* 異常の詳細（設定 5） */
+    bool estop;                 /* E-stop でラッチ中 */
+    bool synced;                /* 最初の SYNC を受けた */
+    bool sync_lost;             /* SYNC の途絶で止めている */
     uint32_t last_sync_us;
     bool ready; /* 起動の知らせを送った後か（FB はその後から。D30） */
     bool restart_pending;
@@ -128,7 +146,11 @@ void mas_can_node_init(mas_can_node_t *node, const mas_can_node_config_t *cfg, u
 void mas_can_node_ready(mas_can_node_t *node, uint32_t now_us);
 void mas_can_node_on_frame(mas_can_node_t *node, const mas_can_frame_t *f, uint32_t now_us);
 void mas_can_node_tick(mas_can_node_t *node, uint32_t now_us);
-bool mas_can_node_pop_tx(mas_can_node_t *node, mas_can_frame_t *out);
+
+/* 送るフレームの先頭を覗く（無ければ NULL）。送れたら mas_can_node_drop_tx で消す（N8）。
+ * 再起動の要求があれば、待ち行列が空になった時点で cfg.restart を呼ぶ（D28）。 */
+const mas_can_frame_t *mas_can_node_peek_tx(const mas_can_node_t *node);
+void mas_can_node_drop_tx(mas_can_node_t *node);
 
 /* 基板が見つけた異常の bit を立てる（異常の詳細。種類ごとの bit 8〜など）。 */
 void mas_can_node_raise_fault(mas_can_node_t *node, uint32_t bits);
