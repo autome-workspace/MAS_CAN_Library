@@ -21,7 +21,6 @@ extern TIM_HandleTypeDef htim3;
 
 static mas_can_node_t node;
 static uint16_t current_zero_adc;
-static float duty_now;
 
 /* ---- CAN ---- */
 
@@ -125,79 +124,125 @@ static void bridge(uint32_t pos, uint32_t neg) {
     __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_2, neg);
 }
 
-/* 電流は PWM のオンの区間の終わりで測る。オフの間（低速減衰）は検出抵抗に流れないため。
- * TIM2 CH3（ピンには出さない）の PWM2 の立ち上がり ＝ TRGO で ADC を起動する */
-#define SO_SETTLE 160u /* オンになった後 10 µs ほど SO がリンギングする（実測） */
-#define SO_MARGIN 24u  /* オフになる 1.5 µs 前に測る */
+/* 出力は PWM の 1 周期ごとの割り込み（ADC の変換の終わり、30 kHz）で決める。main は指令を置くだけ。
+ * 電流は PWM のオンの区間の終わりで測る。オフの間（低速減衰）は検出抵抗に流れないため。
+ * TIM2 CH3（ピンには出さない）の PWM2 の立ち上がり ＝ TRGO で ADC を起動する。 */
+#define SO_SETTLE 160 /* オンの後 10 µs は SO がリンギングする（実測）。これより短いと測れない */
+#define SO_MARGIN 24  /* オフになる 1.5 µs 前に測る */
+#define ADC_TO_MA_Q10 8253 /* 1 カウント ＝ 3300 / 4095 / 100 A ＝ 8.06 mA */
+#define KP_Q8 8            /* 電流の PI。誤差 1 mA あたりの duty [カウント] × 256 */
+#define CHOP_Q8 384        /* 打ち切りの上限 ＝ 目標 × 1.5（保険） */
+#define KI_Q16 1048        /* 誤差 1 mA あたり 1 周期ごとに足す duty [カウント] × 65536 */
 
-static volatile bool sample_valid;
-static float current_ma_avg;
+typedef struct {
+    mas_can_md_out_mode_t mode;
+    int32_t duty;      /* DUTY: 符号付きのカウント */
+    int32_t target_ma; /* CURRENT */
+    uint32_t vref;     /* TIM3 の比較値（DRV8701 の打ち切り） */
+    bool reset;
+} drive_cmd_t;
 
-static void set_sample_point(uint32_t on) {
-    if (on < SO_SETTLE) {
-        sample_valid = false;
-        return;
+static volatile drive_cmd_t cmd;
+static volatile int32_t meas_q4; /* 測った電流 [mA] × 16。出している向きを正 */
+static volatile int32_t applied; /* 出している duty（符号付きのカウント） */
+
+/* 電流の指令: 目標との差で PI を回し duty を決める。duty の下限は測れる長さ（SO_SETTLE）にして、
+ * それより小さい電流は DRV8701 の打ち切り（目標の 1.5 倍）に任せる。
+ * 目標 0 は下限なしで 0 に追従させ（空転の代わり）、測れなくなったら duty を少しずつ下げる */
+static int32_t current_loop(int32_t target_ma, bool valid, int32_t ma, bool reset) {
+    static int32_t integ; /* duty [カウント] × 65536 */
+    static int32_t dir = 1;
+    if (target_ma != 0 && (target_ma > 0) != (dir > 0)) {
+        dir = -dir;
+        reset = true;
     }
-    uint32_t at = on > PWM_PERIOD ? PWM_PERIOD / 2 : on - SO_MARGIN;
-    __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_3, at);
-    sample_valid = true;
+    int32_t mag = target_ma < 0 ? -target_ma : target_ma;
+    int32_t floor = mag ? SO_SETTLE : 0;
+    if (reset) integ = floor << 16;
+    int32_t p = 0;
+    if (valid) {
+        int32_t err = mag - ma;
+        integ += err * KI_Q16;
+        p = (err * KP_Q8) >> 8;
+    } else if (mag == 0) {
+        integ -= integ >> 11;
+    }
+    if (integ < floor << 16) integ = floor << 16;
+    if (integ > (int32_t)PWM_FULL_ON << 16) integ = (int32_t)PWM_FULL_ON << 16;
+    int32_t d = (integ >> 16) + p;
+    if (d < floor) d = floor;
+    if (d > (int32_t)PWM_FULL_ON) d = PWM_FULL_ON;
+    return dir * d;
 }
 
-static void motor_apply(const mas_can_md_output_t *out, const mas_can_md_settings_t *set) {
-    switch (out->mode) {
-        case MAS_CAN_MD_OUT_DUTY: {
-            /* IN1/IN2 の片方を PWM、もう片方を 0。オフの間は DRV8701P の低速減衰（ブレーキ） */
-            float d = out->value > 1.0f ? 1.0f : out->value < -1.0f ? -1.0f : out->value;
-            uint32_t cmp = (uint32_t)((d < 0 ? -d : d) * PWM_FULL_ON + 0.5f);
-            __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_2, ma_to_vref(set->current_limit_ma));
-            if (d >= 0)
-                bridge(cmp, 0);
-            else
-                bridge(0, cmp);
-            set_sample_point(cmp);
-            duty_now = d;
+void ADC1_IRQHandler(void) {
+    static bool valid; /* この変換がオンの区間の中で取れたか（1 周期前に決めた） */
+    int32_t ma = (((int32_t)ADC1->DR - (int32_t)current_zero_adc) * ADC_TO_MA_Q10) >> 10;
+    if (valid) meas_q4 += ma - (meas_q4 >> 4);
+
+    bool reset = cmd.reset;
+    cmd.reset = false;
+    int32_t on = 0;
+    switch (cmd.mode) {
+        case MAS_CAN_MD_OUT_DUTY:
+            on = cmd.duty;
             break;
-        }
-        case MAS_CAN_MD_OUT_CURRENT: {
-            /* 仮: 旧ファームと同じく DRV8701 の打ち切りに任せる（F7: 後でソフトの電流ループにする）
-             */
-            float ma = out->value;
-            uint32_t mag = (uint32_t)(ma < 0 ? -ma : ma);
-            if (mag > set->current_limit_ma) mag = set->current_limit_ma;
-            __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_2, mag ? ma_to_vref(mag) : 0);
-            if (mag == 0)
-                bridge(PWM_FULL_ON, PWM_FULL_ON);
-            else if (ma > 0)
-                bridge(PWM_FULL_ON, 0);
-            else
-                bridge(0, PWM_FULL_ON);
-            set_sample_point(mag ? PWM_FULL_ON : 0);
-            duty_now = mag == 0 ? 0.0f : (ma > 0 ? 1.0f : -1.0f);
+        case MAS_CAN_MD_OUT_CURRENT:
+            on = current_loop(cmd.target_ma, valid, ma, reset);
             break;
-        }
-        default: /* 止める: 空転は出せないので、いつもブレーキ（IN1 ＝ IN2 ＝ 1） */
-            __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_2, 0);
-            bridge(PWM_FULL_ON, PWM_FULL_ON);
-            set_sample_point(0);
-            duty_now = 0;
+        default:
+            current_loop(0, false, 0, true);
             break;
     }
+
+    uint32_t mag = (uint32_t)(on < 0 ? -on : on);
+    if (cmd.mode != MAS_CAN_MD_OUT_DUTY && cmd.mode != MAS_CAN_MD_OUT_CURRENT)
+        bridge(PWM_FULL_ON, PWM_FULL_ON); /* 止める: 空転は出せないので、いつもブレーキ */
+    else if (on >= 0)
+        bridge(mag, 0); /* オフの間は DRV8701P の低速減衰（ブレーキ） */
+    else
+        bridge(0, mag);
+    __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_2, cmd.vref);
+    valid = mag >= SO_SETTLE;
+    if (valid)
+        __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_3,
+                              mag > PWM_PERIOD ? PWM_PERIOD / 2 : mag - SO_MARGIN);
+    if ((on < 0) != (applied < 0) || on == 0) meas_q4 = 0;
+    applied = on;
 }
 
-/* 測れない間（止めている、duty が小さい）は、止めていれば 0、そうでなければ前の値 */
+static void motor_command(const mas_can_md_output_t *out, const mas_can_md_settings_t *set) {
+    int32_t duty = 0, target = 0;
+    uint32_t vref = ma_to_vref(set->current_limit_ma);
+    if (out->mode == MAS_CAN_MD_OUT_DUTY) {
+        float d = out->value > 1.0f ? 1.0f : out->value < -1.0f ? -1.0f : out->value;
+        duty = (int32_t)(d * PWM_FULL_ON + (d < 0 ? -0.5f : 0.5f));
+    } else if (out->mode == MAS_CAN_MD_OUT_CURRENT) {
+        float lim = (float)set->current_limit_ma;
+        float t = out->value > lim ? lim : out->value < -lim ? -lim : out->value;
+        target = (int32_t)t;
+        uint32_t mag = (uint32_t)(target < 0 ? -target : target);
+        if (mag) vref = ma_to_vref((mag * CHOP_Q8) >> 8);
+    } else {
+        vref = 0;
+    }
+    __disable_irq();
+    cmd.mode = out->mode;
+    cmd.duty = duty;
+    cmd.target_ma = target;
+    cmd.vref = vref;
+    cmd.reset = cmd.reset || out->reset_ctrl;
+    __enable_irq();
+}
+
+/* 測れない間（duty が小さい）は前の値。止めていれば 0 */
 static float read_current_ma(void) {
-    if (__HAL_ADC_GET_FLAG(&hadc, ADC_FLAG_EOC)) {
-        uint32_t v = HAL_ADC_GetValue(&hadc);
-        if (sample_valid) {
-            float ma = v > current_zero_adc ? (float)(v - current_zero_adc) * ADC_REF_MV /
-                                                  ADC_FULL * 1000.0f / SENSE_MV_PER_A
-                                            : 0.0f;
-            current_ma_avg += (ma - current_ma_avg) * 0.0625f;
-        }
-    }
-    if (duty_now == 0) current_ma_avg = 0;
-    return duty_now < 0 ? -current_ma_avg : current_ma_avg;
+    int32_t on = applied;
+    float ma = (float)meas_q4 / 16.0f;
+    return on == 0 ? 0.0f : on < 0 ? -ma : ma;
 }
+
+static float read_duty(void) { return (float)applied / (float)PWM_FULL_ON; }
 
 static void start_current_sampling(void) {
     HAL_ADC_Stop(&hadc);
@@ -259,10 +304,12 @@ void app_init(void) {
     HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_1);
     HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_2);
     HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_2);
-    mas_can_md_output_t stop = {MAS_CAN_MD_OUT_STOP, true, 0, false};
-    mas_can_md_settings_t dummy = {0};
-    motor_apply(&stop, &dummy);
+    bridge(PWM_FULL_ON, PWM_FULL_ON);
+    cmd.mode = MAS_CAN_MD_OUT_STOP;
     HAL_ADC_Start(&hadc);
+    __HAL_ADC_ENABLE_IT(&hadc, ADC_IT_EOC);
+    HAL_NVIC_SetPriority(ADC1_IRQn, 0, 0);
+    HAL_NVIC_EnableIRQ(ADC1_IRQn);
 
     mas_can_node_config_t cfg;
     memset(&cfg, 0, sizeof(cfg));
@@ -301,11 +348,11 @@ void app_loop(void) {
     mas_can_node_tick(&node, now);
 
     mas_can_md_output_t out = mas_can_md_output(&node, 0);
-    motor_apply(&out, mas_can_md_settings(&node, 0));
+    motor_command(&out, mas_can_md_settings(&node, 0));
 
     mas_can_md_measure_t m = {0};
     m.current_ma = read_current_ma();
-    m.duty = duty_now;
+    m.duty = read_duty();
     mas_can_md_set_measure(&node, 0, &m);
 
     const mas_can_frame_t *f;
