@@ -1,15 +1,23 @@
-# コアのテストを PC で動かす: make -C lib/mas/test
+# テストを PC で動かす: make -C lib/mas/test
 CC ?= gcc
+CXX ?= g++
 CFLAGS = -std=c11 -Wall -Wextra -Werror -I../include
-SRC = test_core.c ../src/can/core/md.c ../src/can/core/setting.c
+CXXFLAGS = -std=c++11 -Wall -Wextra -Werror -I../include
+CORE = ../src/can/core/md.c ../src/can/core/setting.c
+LIB = ../src/can/bus.cpp ../src/can/md.cpp ../src/can/controller.cpp
 
-test: test_core
+test: test_core test_bus
 	./test_core
+	./test_bus
 
-test_core: $(SRC)
-	$(CC) $(CFLAGS) -o $@ $(SRC)
+test_core: test_core.c $(CORE)
+	$(CC) $(CFLAGS) -o $@ test_core.c $(CORE)
+
+test_bus: test_bus.cpp $(LIB) $(CORE)
+	$(CC) $(CFLAGS) -c $(CORE)
+	$(CXX) $(CXXFLAGS) -o $@ test_bus.cpp $(LIB) md.o setting.o
 
 clean:
-	rm -f test_core
+	rm -f test_core test_bus *.o
 
 .PHONY: test clean

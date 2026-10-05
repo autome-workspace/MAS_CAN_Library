@@ -45,7 +45,7 @@ class Md {
     void setSpeed(float radps);   // rad/s（出力軸）
     void setDuty(float ratio,
                  bool brake = false);  // -1.0〜+1.0。brake: PWM のオフの間をブレーキにする
-    void stop();                       // 止める値を送る（duty 0、空転）
+    void stop();  // 今の指令の種類のまま、止める値を送る（電流・速度・duty は 0）
 
     // 上級者向け: 生の値（LSB は基板の分解能の設定による）
     void setCurrentRaw(int16_t raw);
@@ -72,6 +72,10 @@ class Md {
     bool currentLimited() const;  // FB の bit 3
     bool stopped() const;         // FB の bit 4
     bool estopLatched() const;    // FB の bit 5
+
+    // 同じフレーム（4 ch の組）に別の種類の指令の ch がいて、この ch の指令を送れていない。
+    // 送れない ch は基板の途絶判定で止まる（同じ組の ch は指令の種類をそろえること）。
+    bool commandConflict() const;
 
     // ---- 異常（A7） ----
     bool hasFault() const;         // FB の bit 0

@@ -1,1 +1,3 @@
 test_core
+test_bus
+*.o
