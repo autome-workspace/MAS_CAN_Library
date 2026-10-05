@@ -125,6 +125,24 @@ static void bridge(uint32_t pos, uint32_t neg) {
     __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_2, neg);
 }
 
+/* 電流は PWM のオンの区間の終わりで測る。オフの間（低速減衰）は検出抵抗に流れないため。
+ * TIM2 CH3（ピンには出さない）の PWM2 の立ち上がり ＝ TRGO で ADC を起動する */
+#define SO_SETTLE 160u /* オンになった後 10 µs ほど SO がリンギングする（実測） */
+#define SO_MARGIN 24u  /* オフになる 1.5 µs 前に測る */
+
+static volatile bool sample_valid;
+static float current_ma_avg;
+
+static void set_sample_point(uint32_t on) {
+    if (on < SO_SETTLE) {
+        sample_valid = false;
+        return;
+    }
+    uint32_t at = on > PWM_PERIOD ? PWM_PERIOD / 2 : on - SO_MARGIN;
+    __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_3, at);
+    sample_valid = true;
+}
+
 static void motor_apply(const mas_can_md_output_t *out, const mas_can_md_settings_t *set) {
     switch (out->mode) {
         case MAS_CAN_MD_OUT_DUTY: {
@@ -136,6 +154,7 @@ static void motor_apply(const mas_can_md_output_t *out, const mas_can_md_setting
                 bridge(cmp, 0);
             else
                 bridge(0, cmp);
+            set_sample_point(cmp);
             duty_now = d;
             break;
         }
@@ -152,30 +171,54 @@ static void motor_apply(const mas_can_md_output_t *out, const mas_can_md_setting
                 bridge(PWM_FULL_ON, 0);
             else
                 bridge(0, PWM_FULL_ON);
+            set_sample_point(mag ? PWM_FULL_ON : 0);
             duty_now = mag == 0 ? 0.0f : (ma > 0 ? 1.0f : -1.0f);
             break;
         }
         default: /* 止める: 空転は出せないので、いつもブレーキ（IN1 ＝ IN2 ＝ 1） */
             __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_2, 0);
             bridge(PWM_FULL_ON, PWM_FULL_ON);
+            set_sample_point(0);
             duty_now = 0;
             break;
     }
 }
 
+/* 測れない間（止めている、duty が小さい）は、止めていれば 0、そうでなければ前の値 */
 static float read_current_ma(void) {
-    /* 仮: 旧ファームと同じく最大値（ブレーキで減衰している間は SO が無効なため） */
-    uint32_t max = 0;
-    for (int i = 0; i < 32; i++) {
-        HAL_ADC_Start(&hadc);
-        if (HAL_ADC_PollForConversion(&hadc, 1) == HAL_OK) {
-            uint32_t v = HAL_ADC_GetValue(&hadc);
-            if (v > max) max = v;
+    if (__HAL_ADC_GET_FLAG(&hadc, ADC_FLAG_EOC)) {
+        uint32_t v = HAL_ADC_GetValue(&hadc);
+        if (sample_valid) {
+            float ma = v > current_zero_adc ? (float)(v - current_zero_adc) * ADC_REF_MV /
+                                                  ADC_FULL * 1000.0f / SENSE_MV_PER_A
+                                            : 0.0f;
+            current_ma_avg += (ma - current_ma_avg) * 0.0625f;
         }
     }
-    if (max <= current_zero_adc) return 0;
-    float ma = (float)(max - current_zero_adc) * ADC_REF_MV / ADC_FULL * 1000.0f / SENSE_MV_PER_A;
-    return duty_now < 0 ? -ma : ma;
+    if (duty_now == 0) current_ma_avg = 0;
+    return duty_now < 0 ? -current_ma_avg : current_ma_avg;
+}
+
+static void start_current_sampling(void) {
+    HAL_ADC_Stop(&hadc);
+    hadc.Init.ExternalTrigConv = ADC_EXTERNALTRIGCONV_T2_TRGO;
+    hadc.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_RISING;
+    hadc.Init.Overrun = ADC_OVR_DATA_OVERWRITTEN;
+    HAL_ADC_Init(&hadc);
+    ADC_ChannelConfTypeDef ch = {0};
+    ch.Channel = ADC_CHANNEL_6;
+    ch.Rank = ADC_RANK_CHANNEL_NUMBER;
+    ch.SamplingTime = ADC_SAMPLETIME_7CYCLES_5;
+    HAL_ADC_ConfigChannel(&hadc, &ch);
+
+    TIM_OC_InitTypeDef oc = {0};
+    oc.OCMode = TIM_OCMODE_PWM2;
+    oc.Pulse = PWM_PERIOD / 2;
+    HAL_TIM_PWM_ConfigChannel(&htim2, &oc, TIM_CHANNEL_3);
+    TIM_MasterConfigTypeDef mc = {0};
+    mc.MasterOutputTrigger = TIM_TRGO_OC3REF;
+    mc.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+    HAL_TIMEx_MasterConfigSynchronization(&htim2, &mc);
 }
 
 static void calibrate_zero(void) {
@@ -212,12 +255,14 @@ static void led_update(uint8_t k, uint32_t now_ms) {
 void app_init(void) {
     HAL_ADCEx_Calibration_Start(&hadc);
     calibrate_zero();
+    start_current_sampling();
     HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_1);
     HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_2);
     HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_2);
     mas_can_md_output_t stop = {MAS_CAN_MD_OUT_STOP, true, 0, false};
     mas_can_md_settings_t dummy = {0};
     motor_apply(&stop, &dummy);
+    HAL_ADC_Start(&hadc);
 
     mas_can_node_config_t cfg;
     memset(&cfg, 0, sizeof(cfg));
