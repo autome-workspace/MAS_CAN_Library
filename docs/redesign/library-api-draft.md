@@ -140,3 +140,11 @@ mas::can::Controller pad = can.controller(0);
 1. `waitOnline(配列, 個数, ms)` を `can.waitReady(ms)`（確保した相手すべてが online かつ ready になるまで待つ）にするか。今の `waitOnline` は online だけを待つので、true が返っても ready までは止める値を送っている。
 2. 刻みを書いていない ch にも、最初に FB を受けたときに既定値を書くか（主制御だけを再起動すると、基板に前のプログラムの刻みが残って食い違う。API は変わらない。実装の穴）。
 3. `begin()` の後で初めて求めた ch の確保が失敗したときの知らせ方（案: 何もしない取っ手を返し、`onFault` にライブラリの bit で知らせる）。
+
+### 2026-10-14: 主制御側はユーザが書き直す
+
+ユーザ: 部で共有するので、自分で実装して中身を完全に把握したい。Claude は補助（説明、レビュー）に回る。
+
+- Claude が書いた主制御側の実装（`bus.cpp`、`md.cpp`、`controller.cpp`、`esp32_twai.cpp`、そのヘッダ、`can.h`、`test/test_bus.cpp`）は、タグ **`ref-claude-impl`** に残し、`next` からは消した。基板と共有するコア（`core/`、`node.c`、`node.h`、`frame.h`）と、そのテスト（`test_core`、`test_node`）は残す。
+- 参考に読むための写しを `.ref/`（git の worktree。`.gitignore` 済み）に置いた。`.ref/lib/mas/...` を VS Code で横に開いて読める。要らなくなったら `git worktree remove .ref`。
+- 見本の正本は変わらず `examples/api_tour`。これがビルドできるようになるまで書く。
