@@ -13,20 +13,22 @@ mcan::Md lift = can.md(4);
 mcan::Md roller = can.md(5);
 mcan::Controller pad = can.controller(0);
 
-void onFault(mcan::Md &md, uint32_t new_bits) {
-    Serial.printf("MD %d fault 0x%08lx\n", md.ch(), (unsigned long)new_bits);
+void onFault(mcan::Device &dev, uint32_t new_bits) {
+    Serial.printf("ch %d fault 0x%08lx\n", dev.ch(), (unsigned long)new_bits);
+    if (dev == lift) lift.setCurrent(0.0f);
 }
 
 void setup() {
     Serial.begin(115200);
 
     twai.begin({GPIO_NUM_5, GPIO_NUM_4});
-    can.begin(twai);
+    if (!can.begin(twai)) Serial.println("out of memory");
     can.onFault(onFault);
 
     for (auto &w : wheel) w.setSpeedResolution(0.01f);  // rad/s per LSB
     lift.setCurrentResolution(0.002f);                  // A per LSB
     pad.setDeadzone(0.05f);
+    Serial.printf("wheel %.1f rad/s, lift %.1f A\n", wheel[0].speedRange(), lift.currentRange());
 
     if (!can.waitOnline(wheel, 4, 1000)) Serial.println("wheel missing");
 }
@@ -81,7 +83,9 @@ void loop() {
                           w.current(), mcan::countsToRad(w.position()), w.stopped() ? " stop" : "",
                           w.estopLatched() ? " estop" : "");
         }
-        Serial.printf("lift %5.2f A%s duty %+.2f\n", lift.current(),
-                      lift.currentLimited() ? " (limit)" : "", lift.duty());
+        const mcan::Md::Feedback &fb = lift.feedback();
+        Serial.printf("lift %5.2f A%s duty %+.2f\n", fb.current,
+                      fb.currentLimited() ? " (limit)" : "", fb.duty);
+        Serial.printf("rx overflow %lu\n", (unsigned long)can.rxOverflows());
     }
 }
