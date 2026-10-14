@@ -1,13 +1,15 @@
 # MAS CAN Library
 
-MAS CAN プロトコル v1 の再設計と、そのライブラリ・ファーム。記録は `docs/redesign/`、版とブランチの方針は `docs/versioning.md`。
+MAS CAN プロトコル v1 の再設計と、そのライブラリ・ファーム。**決定の正本は `docs/decisions/` の台帳**（書き方はその README）。`docs/redesign/` は 2026-10-14 までの記録で凍結。版とブランチの方針は `docs/versioning.md`。
+
+- 決定は台帳にだけ書く。検討は `docs/notes/` に日付付きで書き、書いた後は直さない。未決は `docs/decisions/open.md`。
 
 ## 主制御側のライブラリは、ユーザが自分で書く
 
 `lib/mas` の主制御側（`Host`、`Device` と取っ手（`Md`、`Controller`、`Pin`、`Air`、`Solenoid`）、`Port`、`Esp32Twai` など）は、部で共有するので、ユーザが中身を完全に把握するために**自分で空から書き直している**（2026-10-14〜）。
 
 - **Claude は補助に回る。代わりに書かない。** 一歩ずつ「どのファイルのどこに、何を、なぜ書くか」を前提から説明し、ユーザが書いたものをレビューし、テストで確かめる。Claude が書くのは、ユーザに頼まれた部分だけ。
-- 目標は `examples/api_tour/src/main.cpp` がビルドできること。**この見本が API の正本**で、ヘッダは見本に合わせる。
+- 目標は `examples/api_tour/src/main.cpp` がビルドできること。**API の正典は `docs/decisions/api.md`**（2026-10-14、ユーザ）。順番は台帳 → ヘッダ → 見本。使用感を見るために見本で先に試してもよいが、見本にしか無いものは「試し」で、台帳に書いて決定になる。
 - 決定の経緯は `docs/redesign/library-api-draft.md` の「API を固める」節。保留の論点（`waitReady`、刻みの既定値の書き込み、loop の中の確保の失敗、A10、A11、`stop`／`commandConflict`／`onSettingError`、Q34）は、ユーザが実装しながら決め、決めたら同じ節の表に書き足す。
 
 ## 作業場（git worktree）
