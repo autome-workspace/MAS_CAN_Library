@@ -25,3 +25,4 @@
 
 - 他の種類の未決（Q27〜Q31、Q37 など）は、reserved.md を作るときにここへ移す。それまでは `docs/redesign/spec-draft.md` の確認事項 D。
 - API の保留（`waitReady`、刻みの既定値の書き込み、loop の中の確保の失敗、A10、A11、`stop`／`commandConflict`／`onSettingError`）は、api.md を作るときにここへ移す。
+- SYNC の送り手が 2 台になる穴（2026-10-15、ユーザ: 遭遇が稀なので保留の穴とする）: ライブラリが SYNC を自動で送る限り、2 台目がいれば衝突しうる。止める関数は A10 の `setSyncSource(false)`。CAN のコントローラは自分の送ったフレームを受けないので、`0x002` を受けたら他の送り手がいると分かる（A10 の材料）。
