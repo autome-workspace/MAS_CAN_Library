@@ -4,7 +4,7 @@ int16_t mas_can_md_stop_value(mas_can_md_cmd_t cmd) {
     return cmd == MAS_CAN_MD_CMD_POSITION ? MAS_CAN_MD_POSITION_STOP : 0;
 }
 
-void mas_can_md_cmd_init(mas_can_frame_t *f, mas_can_md_cmd_t cmd, uint8_t ch) {
+void mas_can_md_cmd_init(mas_can_frame_t* f, mas_can_md_cmd_t cmd, uint8_t ch) {
     f->id = mas_can_md_cmd_id(cmd, ch);
     f->dlc = 8;
     f->rtr = false;
@@ -12,11 +12,11 @@ void mas_can_md_cmd_init(mas_can_frame_t *f, mas_can_md_cmd_t cmd, uint8_t ch) {
     for (unsigned i = 0; i < MAS_CAN_MD_SLOTS; i++) mas_can_put_u16(&f->data[i * 2], stop);
 }
 
-void mas_can_md_cmd_set(mas_can_frame_t *f, uint8_t ch, int16_t value) {
+void mas_can_md_cmd_set(mas_can_frame_t* f, uint8_t ch, int16_t value) {
     mas_can_put_u16(&f->data[(ch % MAS_CAN_MD_SLOTS) * 2], (uint16_t)value);
 }
 
-void mas_can_md_cmd_trim(mas_can_frame_t *f, const bool used[MAS_CAN_MD_SLOTS]) {
+void mas_can_md_cmd_trim(mas_can_frame_t* f, const bool used[MAS_CAN_MD_SLOTS]) {
     uint8_t dlc = 0;
     for (unsigned i = 0; i < MAS_CAN_MD_SLOTS; i++) {
         if (used[i]) dlc = (uint8_t)((i + 1) * 2);
@@ -24,14 +24,14 @@ void mas_can_md_cmd_trim(mas_can_frame_t *f, const bool used[MAS_CAN_MD_SLOTS]) 
     f->dlc = dlc;
 }
 
-bool mas_can_md_cmd_parse_id(uint16_t id, mas_can_md_cmd_t *cmd, uint8_t *frame_no) {
+bool mas_can_md_cmd_parse_id(uint16_t id, mas_can_md_cmd_t* cmd, uint8_t* frame_no) {
     if (id < 0x210u || id > 0x22Fu) return false;
     *cmd = (mas_can_md_cmd_t)((id - 0x210u) / 8u);
     *frame_no = (uint8_t)((id - 0x210u) % 8u);
     return true;
 }
 
-bool mas_can_md_cmd_get(const mas_can_frame_t *f, uint8_t ch, int16_t *value) {
+bool mas_can_md_cmd_get(const mas_can_frame_t* f, uint8_t ch, int16_t* value) {
     unsigned off = (ch % MAS_CAN_MD_SLOTS) * 2u;
     if (f->rtr || f->dlc < off + 2u) return false;
     *value = (int16_t)mas_can_get_u16(&f->data[off]);
@@ -51,7 +51,7 @@ int16_t mas_can_md_duty_value(int16_t raw) {
 
 bool mas_can_md_duty_brake(int16_t raw) { return ((uint16_t)raw & 1u) != 0; }
 
-void mas_can_md_fb_encode(const mas_can_md_fb_t *fb, uint8_t ch, mas_can_frame_t *f) {
+void mas_can_md_fb_encode(const mas_can_md_fb_t* fb, uint8_t ch, mas_can_frame_t* f) {
     bool speed_ok = !(fb->status & MAS_CAN_MD_ST_SPEED_INVALID);
     bool current_ok = !(fb->status & MAS_CAN_MD_ST_CURRENT_INVALID);
     f->id = mas_can_md_fb_id(ch);
@@ -70,7 +70,7 @@ void mas_can_md_fb_encode(const mas_can_md_fb_t *fb, uint8_t ch, mas_can_frame_t
     }
 }
 
-bool mas_can_md_fb_decode(const mas_can_frame_t *f, uint8_t *ch, mas_can_md_fb_t *fb) {
+bool mas_can_md_fb_decode(const mas_can_frame_t* f, uint8_t* ch, mas_can_md_fb_t* fb) {
     if (f->rtr || f->id < 0x320u || f->id > 0x33Fu || f->dlc < 1) return false;
     uint8_t st = f->data[0];
     bool speed_ok = !(st & MAS_CAN_MD_ST_SPEED_INVALID);

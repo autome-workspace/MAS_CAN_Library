@@ -2,14 +2,14 @@
 
 #include <string.h>
 
-bool mas_can_is_estop(const mas_can_frame_t *f) { return f->id == MAS_CAN_ID_ESTOP; }
+bool mas_can_is_estop(const mas_can_frame_t* f) { return f->id == MAS_CAN_ID_ESTOP; }
 
-bool mas_can_is_estop_clear(const mas_can_frame_t *f) {
+bool mas_can_is_estop_clear(const mas_can_frame_t* f) {
     return f->id == MAS_CAN_ID_ESTOP_CLEAR && !f->rtr && f->dlc == 3 && f->data[0] == 'c' &&
            f->data[1] == 'l' && f->data[2] == 'r';
 }
 
-void mas_can_estop_clear_encode(mas_can_frame_t *f) {
+void mas_can_estop_clear_encode(mas_can_frame_t* f) {
     f->id = MAS_CAN_ID_ESTOP_CLEAR;
     f->rtr = false;
     f->dlc = 3;
@@ -18,33 +18,33 @@ void mas_can_estop_clear_encode(mas_can_frame_t *f) {
     f->data[2] = 'r';
 }
 
-void mas_can_sync_encode(uint32_t time_us, mas_can_frame_t *f) {
+void mas_can_sync_encode(uint32_t time_us, mas_can_frame_t* f) {
     f->id = MAS_CAN_ID_SYNC;
     f->rtr = false;
     f->dlc = 4;
     mas_can_put_u32(f->data, time_us);
 }
 
-bool mas_can_sync_decode(const mas_can_frame_t *f, uint32_t *time_us) {
+bool mas_can_sync_decode(const mas_can_frame_t* f, uint32_t* time_us) {
     if (f->id != MAS_CAN_ID_SYNC || f->rtr || f->dlc != 4) return false;
     *time_us = mas_can_get_u32(f->data);
     return true;
 }
 
-void mas_can_boot_encode(mas_can_kind_t kind, mas_can_frame_t *f) {
+void mas_can_boot_encode(mas_can_kind_t kind, mas_can_frame_t* f) {
     f->id = (uint16_t)(MAS_CAN_ID_BOOT_BASE + (unsigned)kind);
     f->rtr = false;
     f->dlc = 0;
 }
 
-bool mas_can_boot_decode(const mas_can_frame_t *f, mas_can_kind_t *kind) {
+bool mas_can_boot_decode(const mas_can_frame_t* f, mas_can_kind_t* kind) {
     if (f->id < MAS_CAN_ID_BOOT_BASE || f->id > MAS_CAN_ID_BOOT_BASE + 15u || f->rtr || f->dlc != 0)
         return false;
     *kind = (mas_can_kind_t)(f->id - MAS_CAN_ID_BOOT_BASE);
     return true;
 }
 
-void mas_can_setting_encode(const mas_can_setting_t *s, mas_can_frame_t *f) {
+void mas_can_setting_encode(const mas_can_setting_t* s, mas_can_frame_t* f) {
     f->id = mas_can_setting_id(s->kind, s->response ? 1u : 0u);
     f->rtr = false;
     f->dlc = 8;
@@ -55,7 +55,7 @@ void mas_can_setting_encode(const mas_can_setting_t *s, mas_can_frame_t *f) {
     f->data[7] = s->seq;
 }
 
-bool mas_can_setting_decode(const mas_can_frame_t *f, mas_can_setting_t *s) {
+bool mas_can_setting_decode(const mas_can_frame_t* f, mas_can_setting_t* s) {
     if (f->id < 0x400u || f->id > 0x4FFu || (f->id & 7u) != 0 || f->rtr || f->dlc != 8)
         return false;
     s->kind = (mas_can_kind_t)((f->id - 0x400u) >> 4);
@@ -69,7 +69,7 @@ bool mas_can_setting_decode(const mas_can_frame_t *f, mas_can_setting_t *s) {
     return true;
 }
 
-void mas_can_setting_encode_uid(mas_can_kind_t kind, uint64_t uid, mas_can_frame_t *f) {
+void mas_can_setting_encode_uid(mas_can_kind_t kind, uint64_t uid, mas_can_frame_t* f) {
     f->id = mas_can_setting_id(kind, 1);
     f->rtr = false;
     f->dlc = 8;
@@ -77,7 +77,7 @@ void mas_can_setting_encode_uid(mas_can_kind_t kind, uint64_t uid, mas_can_frame
     mas_can_put_u32(&f->data[4], (uint32_t)uid);
 }
 
-uint64_t mas_can_setting_decode_uid(const mas_can_frame_t *f) {
+uint64_t mas_can_setting_decode_uid(const mas_can_frame_t* f) {
     return ((uint64_t)mas_can_get_u32(&f->data[0]) << 32) | mas_can_get_u32(&f->data[4]);
 }
 

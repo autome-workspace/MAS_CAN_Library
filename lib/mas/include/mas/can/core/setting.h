@@ -11,19 +11,19 @@ extern "C" {
 /* ---- class 0 ---- */
 
 /* E-stop か（DLC もリモートフレームかも問わない。D35）。 */
-bool mas_can_is_estop(const mas_can_frame_t *f);
+bool mas_can_is_estop(const mas_can_frame_t* f);
 
 /* 正しい E-stop の解除か（DLC 3 ちょうど、"clr"、データフレーム。D25）。 */
-bool mas_can_is_estop_clear(const mas_can_frame_t *f);
-void mas_can_estop_clear_encode(mas_can_frame_t *f);
+bool mas_can_is_estop_clear(const mas_can_frame_t* f);
+void mas_can_estop_clear_encode(mas_can_frame_t* f);
 
 /* SYNC（DLC 4 だけを受け付ける。D24）。 */
-void mas_can_sync_encode(uint32_t time_us, mas_can_frame_t *f);
-bool mas_can_sync_decode(const mas_can_frame_t *f, uint32_t *time_us);
+void mas_can_sync_encode(uint32_t time_us, mas_can_frame_t* f);
+bool mas_can_sync_decode(const mas_can_frame_t* f, uint32_t* time_us);
 
 /* 起動の知らせ（DLC 0）。 */
-void mas_can_boot_encode(mas_can_kind_t kind, mas_can_frame_t *f);
-bool mas_can_boot_decode(const mas_can_frame_t *f, mas_can_kind_t *kind);
+void mas_can_boot_encode(mas_can_kind_t kind, mas_can_frame_t* f);
+bool mas_can_boot_decode(const mas_can_frame_t* f, mas_can_kind_t* kind);
 
 /* ---- 設定（class 4） ---- */
 
@@ -68,15 +68,15 @@ typedef struct {
     uint8_t seq;
 } mas_can_setting_t;
 
-void mas_can_setting_encode(const mas_can_setting_t *s, mas_can_frame_t *f);
+void mas_can_setting_encode(const mas_can_setting_t* s, mas_can_frame_t* f);
 
 /* 設定のフレームを解読する。DLC 8 以外、ID の下位 3 bit が 0 でないものは false（D26）。
  * 項目 0 の読み出しの応答（固有 ID）はこの形ではないので、mas_can_setting_decode_uid を使う。 */
-bool mas_can_setting_decode(const mas_can_frame_t *f, mas_can_setting_t *s);
+bool mas_can_setting_decode(const mas_can_frame_t* f, mas_can_setting_t* s);
 
 /* 項目 0（確認）の応答: data 8 byte すべてが固有 ID（D22 の並び）。 */
-void mas_can_setting_encode_uid(mas_can_kind_t kind, uint64_t uid, mas_can_frame_t *f);
-uint64_t mas_can_setting_decode_uid(const mas_can_frame_t *f);
+void mas_can_setting_encode_uid(mas_can_kind_t kind, uint64_t uid, mas_can_frame_t* f);
+uint64_t mas_can_setting_decode_uid(const mas_can_frame_t* f);
 
 /* 値の欄の読み書き（big-endian） */
 void mas_can_value_set_u32(uint8_t v[4], uint32_t x);

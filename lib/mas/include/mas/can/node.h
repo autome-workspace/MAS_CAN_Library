@@ -50,10 +50,10 @@ typedef struct {
     uint32_t md_encoder_cpr_default;
 
     /* 保存した設定の読み書き（フラッシュ）。成功で true。ctx はそのまま渡される */
-    bool (*load)(void *ctx, void *buf, size_t len);
-    bool (*save)(void *ctx, const void *buf, size_t len);
-    void (*restart)(void *ctx); /* 設定 6（再起動）。応答を送り終えてから呼ばれる（D28） */
-    void *ctx;
+    bool (*load)(void* ctx, void* buf, size_t len);
+    bool (*save)(void* ctx, const void* buf, size_t len);
+    void (*restart)(void* ctx); /* 設定 6（再起動）。応答を送り終えてから呼ばれる（D28） */
+    void* ctx;
 } mas_can_node_config_t;
 
 /* ---- MD: コアが決めた「出すべきもの」 ---- */
@@ -142,24 +142,24 @@ typedef struct {
 } mas_can_node_t;
 
 /* ---- 共通 ---- */
-void mas_can_node_init(mas_can_node_t *node, const mas_can_node_config_t *cfg, uint32_t now_us);
-void mas_can_node_ready(mas_can_node_t *node, uint32_t now_us);
-void mas_can_node_on_frame(mas_can_node_t *node, const mas_can_frame_t *f, uint32_t now_us);
-void mas_can_node_tick(mas_can_node_t *node, uint32_t now_us);
+void mas_can_node_init(mas_can_node_t* node, const mas_can_node_config_t* cfg, uint32_t now_us);
+void mas_can_node_ready(mas_can_node_t* node, uint32_t now_us);
+void mas_can_node_on_frame(mas_can_node_t* node, const mas_can_frame_t* f, uint32_t now_us);
+void mas_can_node_tick(mas_can_node_t* node, uint32_t now_us);
 
 /* 送るフレームの先頭を覗く（無ければ NULL）。送れたら mas_can_node_drop_tx で消す（N8）。
  * 再起動の要求があれば、待ち行列が空になった時点で cfg.restart を呼ぶ（D28）。 */
-const mas_can_frame_t *mas_can_node_peek_tx(const mas_can_node_t *node);
-void mas_can_node_drop_tx(mas_can_node_t *node);
+const mas_can_frame_t* mas_can_node_peek_tx(const mas_can_node_t* node);
+void mas_can_node_drop_tx(mas_can_node_t* node);
 
 /* 基板が見つけた異常の bit を立てる（異常の詳細。種類ごとの bit 8〜など）。 */
-void mas_can_node_raise_fault(mas_can_node_t *node, uint32_t bits);
+void mas_can_node_raise_fault(mas_can_node_t* node, uint32_t bits);
 
 /* ---- MD ---- */
 /* local は基板の中の番号（0〜md_count-1）。ch ＝ md_first_ch ＋ local。 */
-mas_can_md_output_t mas_can_md_output(mas_can_node_t *node, uint8_t local);
-void mas_can_md_set_measure(mas_can_node_t *node, uint8_t local, const mas_can_md_measure_t *m);
-const mas_can_md_settings_t *mas_can_md_settings(const mas_can_node_t *node, uint8_t local);
+mas_can_md_output_t mas_can_md_output(mas_can_node_t* node, uint8_t local);
+void mas_can_md_set_measure(mas_can_node_t* node, uint8_t local, const mas_can_md_measure_t* m);
+const mas_can_md_settings_t* mas_can_md_settings(const mas_can_node_t* node, uint8_t local);
 
 #ifdef __cplusplus
 }

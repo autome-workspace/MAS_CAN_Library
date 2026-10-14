@@ -17,7 +17,7 @@ static unsigned char flash[sizeof(mas_can_node_saved_t)];
 static bool flash_blank = true;
 static int restarts = 0;
 
-static bool load(void *ctx, void *buf, size_t len) {
+static bool load(void* ctx, void* buf, size_t len) {
     (void)ctx;
     if (flash_blank)
         memset(buf, 0xFF, len);
@@ -25,13 +25,13 @@ static bool load(void *ctx, void *buf, size_t len) {
         memcpy(buf, flash, len);
     return true;
 }
-static bool save(void *ctx, const void *buf, size_t len) {
+static bool save(void* ctx, const void* buf, size_t len) {
     (void)ctx;
     memcpy(flash, buf, len);
     flash_blank = false;
     return true;
 }
-static void restart(void *ctx) {
+static void restart(void* ctx) {
     (void)ctx;
     restarts++;
 }
@@ -65,9 +65,9 @@ static void tick_ms(int ms) {
     }
 }
 
-static int drain(mas_can_frame_t *out, int max) {
+static int drain(mas_can_frame_t* out, int max) {
     int n = 0;
-    const mas_can_frame_t *f;
+    const mas_can_frame_t* f;
     while ((f = mas_can_node_peek_tx(&node))) {
         if (n < max) out[n] = *f;
         n++;
@@ -96,7 +96,7 @@ static mas_can_setting_t setting(uint8_t ch, mas_can_op_t op, uint8_t item, uint
     return s;
 }
 
-static bool request(mas_can_setting_t req, mas_can_setting_t *resp) {
+static bool request(mas_can_setting_t req, mas_can_setting_t* resp) {
     mas_can_frame_t f, out[8];
     mas_can_setting_encode(&req, &f);
     mas_can_node_on_frame(&node, &f, now);
@@ -111,18 +111,18 @@ static void test_boot_and_fb(void) {
     mas_can_node_init(&node, &c, now);
     mas_can_frame_t out[8];
     tick_ms(50);
-    CHECK(drain(out, 8) == 0);  // 起動の知らせの前は FB を送らない（D30）
+    CHECK(drain(out, 8) == 0); // 起動の知らせの前は FB を送らない（D30）
     mas_can_node_ready(&node, now);
     int n = drain(out, 8);
     CHECK(n == 1 && out[0].id == 0x010 && out[0].dlc == 0);
     tick_ms(10);
     n = drain(out, 8);
-    CHECK(n == 1 && out[0].id == 0x325 && out[0].dlc == 5);  // 電流だけ測れる
+    CHECK(n == 1 && out[0].id == 0x325 && out[0].dlc == 5); // 電流だけ測れる
     // 起動直後: 異常あり（再起動）、止めている、指令の種類 0（D16）
     CHECK(out[0].data[0] ==
           (MAS_CAN_MD_ST_FAULT | MAS_CAN_MD_ST_SPEED_INVALID | MAS_CAN_MD_ST_STOPPED));
     mas_can_md_output_t o = mas_can_md_output(&node, 0);
-    CHECK(o.mode == MAS_CAN_MD_OUT_STOP && o.brake);  // 空転を出せないのでブレーキ
+    CHECK(o.mode == MAS_CAN_MD_OUT_STOP && o.brake); // 空転を出せないのでブレーキ
 }
 
 static void test_commands(void) {
@@ -130,19 +130,19 @@ static void test_commands(void) {
     mas_can_md_output_t o = mas_can_md_output(&node, 0);
     CHECK(o.mode == MAS_CAN_MD_OUT_CURRENT && o.value == 1500.0f && o.reset_ctrl);
     o = mas_can_md_output(&node, 0);
-    CHECK(!o.reset_ctrl);  // 読んだら消える
+    CHECK(!o.reset_ctrl); // 読んだら消える
 
-    send_cmd(MAS_CAN_MD_CMD_CURRENT, 999, 2);  // D9: ch 5 は slot 1。DLC 2 なら受けていない
+    send_cmd(MAS_CAN_MD_CMD_CURRENT, 999, 2); // D9: ch 5 は slot 1。DLC 2 なら受けていない
     o = mas_can_md_output(&node, 0);
     CHECK(o.value == 1500.0f);
 
     send_cmd(MAS_CAN_MD_CMD_DUTY, mas_can_md_duty_pack(8191, false), 8);
     o = mas_can_md_output(&node, 0);
     CHECK(o.mode == MAS_CAN_MD_OUT_DUTY && o.reset_ctrl &&
-          o.brake);  // 種類が変わった、ブレーキに丸める
+          o.brake); // 種類が変わった、ブレーキに丸める
     CHECK(o.value > 0.49f && o.value < 0.51f);
 
-    send_cmd(MAS_CAN_MD_CMD_SPEED, 100, 8);  // エンコーダが無い → 止める（D10）
+    send_cmd(MAS_CAN_MD_CMD_SPEED, 100, 8); // エンコーダが無い → 止める（D10）
     o = mas_can_md_output(&node, 0);
     CHECK(o.mode == MAS_CAN_MD_OUT_STOP);
     mas_can_frame_t out[8];
@@ -155,7 +155,7 @@ static void test_commands(void) {
     send_cmd(MAS_CAN_MD_CMD_CURRENT, 500, 8);
     tick_ms(99);
     CHECK(mas_can_md_output(&node, 0).mode == MAS_CAN_MD_OUT_CURRENT);
-    tick_ms(2);  // 100 ms の途絶
+    tick_ms(2); // 100 ms の途絶
     CHECK(mas_can_md_output(&node, 0).mode == MAS_CAN_MD_OUT_STOP);
 }
 
@@ -163,26 +163,26 @@ static void test_estop_sync(void) {
     mas_can_frame_t f = {0};
     send_cmd(MAS_CAN_MD_CMD_CURRENT, 500, 8);
     f.id = 0;
-    f.rtr = true;  // リモートフレームでも止める（D35）
+    f.rtr = true; // リモートフレームでも止める（D35）
     mas_can_node_on_frame(&node, &f, now);
     CHECK(mas_can_md_output(&node, 0).mode == MAS_CAN_MD_OUT_STOP);
-    send_cmd(MAS_CAN_MD_CMD_CURRENT, 500, 8);  // ラッチ中は無視
+    send_cmd(MAS_CAN_MD_CMD_CURRENT, 500, 8); // ラッチ中は無視
     CHECK(mas_can_md_output(&node, 0).mode == MAS_CAN_MD_OUT_STOP);
     mas_can_estop_clear_encode(&f);
     mas_can_node_on_frame(&node, &f, now);
-    CHECK(mas_can_md_output(&node, 0).mode == MAS_CAN_MD_OUT_STOP);  // 解除だけでは動かない
+    CHECK(mas_can_md_output(&node, 0).mode == MAS_CAN_MD_OUT_STOP); // 解除だけでは動かない
     send_cmd(MAS_CAN_MD_CMD_CURRENT, 500, 8);
     mas_can_md_output_t o = mas_can_md_output(&node, 0);
-    CHECK(o.mode == MAS_CAN_MD_OUT_CURRENT && o.reset_ctrl);  // D21
+    CHECK(o.mode == MAS_CAN_MD_OUT_CURRENT && o.reset_ctrl); // D21
 
     mas_can_sync_encode(0, &f);
     mas_can_node_on_frame(&node, &f, now);
-    for (int i = 0; i < 26; i++) {  // 指令は送り続け、SYNC だけ止める
+    for (int i = 0; i < 26; i++) { // 指令は送り続け、SYNC だけ止める
         send_cmd(MAS_CAN_MD_CMD_CURRENT, 500, 8);
         tick_ms(10);
     }
     CHECK(mas_can_md_output(&node, 0).mode == MAS_CAN_MD_OUT_STOP);
-    mas_can_node_on_frame(&node, &f, now);  // SYNC が戻る
+    mas_can_node_on_frame(&node, &f, now); // SYNC が戻る
     send_cmd(MAS_CAN_MD_CMD_CURRENT, 500, 8);
     CHECK(mas_can_md_output(&node, 0).mode == MAS_CAN_MD_OUT_CURRENT);
 }
@@ -211,7 +211,7 @@ static void test_settings(void) {
     CHECK(request(setting(5, MAS_CAN_OP_WRITE, 33, 50000), &r) && r.result == 0 &&
           mas_can_value_u32(r.value) == 10000);
     CHECK(request(setting(5, MAS_CAN_OP_WRITE, 34, 0), &r) &&
-          mas_can_value_u32(r.value) == 1);  // 空転なし
+          mas_can_value_u32(r.value) == 1); // 空転なし
 
     // 電流の分解能（保存しない）
     q = setting(5, MAS_CAN_OP_WRITE, 48, 0);
@@ -229,7 +229,7 @@ static void test_settings(void) {
     mas_can_node_config_t c = config();
     mas_can_node_init(&node, &c, now);
     CHECK(mas_can_md_settings(&node, 0)->current_limit_ma == 10000);
-    CHECK(mas_can_md_settings(&node, 0)->current_lsb_ma == 1.0f);  // 保存しない項目は焼いた値
+    CHECK(mas_can_md_settings(&node, 0)->current_lsb_ma == 1.0f); // 保存しない項目は焼いた値
     q = setting(5, MAS_CAN_OP_WRITE, 48, 0);
     mas_can_value_set_f32(q.value, 2.0f);
     request(q, &r);

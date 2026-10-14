@@ -16,8 +16,8 @@ static bool elapsed(uint32_t now, uint32_t since, uint32_t period) {
 static bool finite_nonneg(float v) { return v == v && v >= 0.0f && v < 3.4e38f; }
 static bool finite_pos(float v) { return finite_nonneg(v) && v > 0.0f; }
 
-static uint32_t crc32(const void *data, size_t len) {
-    const uint8_t *p = (const uint8_t *)data;
+static uint32_t crc32(const void* data, size_t len) {
+    const uint8_t* p = (const uint8_t*)data;
     uint32_t c = 0xFFFFFFFFu;
     for (size_t i = 0; i < len; i++) {
         c ^= p[i];
@@ -26,20 +26,20 @@ static uint32_t crc32(const void *data, size_t len) {
     return ~c;
 }
 
-static void push_tx(mas_can_node_t *n, const mas_can_frame_t *f) {
+static void push_tx(mas_can_node_t* n, const mas_can_frame_t* f) {
     if (n->txq_len >= MAS_CAN_NODE_TXQ) return; /* 溢れたら捨てる（FB は次の周期で送り直す） */
     n->txq[(n->txq_head + n->txq_len) % MAS_CAN_NODE_TXQ] = *f;
     n->txq_len++;
 }
 
-static int local_of(const mas_can_node_t *n, uint8_t ch) {
+static int local_of(const mas_can_node_t* n, uint8_t ch) {
     if (ch < n->cfg.md_first_ch || ch >= n->cfg.md_first_ch + n->cfg.md_count) return -1;
     return ch - n->cfg.md_first_ch;
 }
 
 /* ---- 設定の焼いた値と、保存した値 ---- */
 
-static void burned_defaults(const mas_can_node_t *n, mas_can_md_settings_t *s) {
+static void burned_defaults(const mas_can_node_t* n, mas_can_md_settings_t* s) {
     memset(s, 0, sizeof(*s));
     s->current_limit_ma = n->cfg.md_current_limit_default_ma;
     s->stop_brake = !n->cfg.md_has_coast;
@@ -50,7 +50,7 @@ static void burned_defaults(const mas_can_node_t *n, mas_can_md_settings_t *s) {
     s->speed_lsb_rpm = 1.0f;
 }
 
-static void to_saved(const mas_can_md_settings_t *s, mas_can_node_md_saved_t *d) {
+static void to_saved(const mas_can_md_settings_t* s, mas_can_node_md_saved_t* d) {
     d->reverse = s->reverse;
     d->stop_brake = s->stop_brake;
     d->encoder_reverse = s->encoder_reverse;
@@ -66,7 +66,7 @@ static void to_saved(const mas_can_md_settings_t *s, mas_can_node_md_saved_t *d)
     d->max_accel_rpm_s = s->max_accel_rpm_s;
 }
 
-static void from_saved(const mas_can_node_md_saved_t *d, mas_can_md_settings_t *s) {
+static void from_saved(const mas_can_node_md_saved_t* d, mas_can_md_settings_t* s) {
     s->reverse = d->reverse;
     s->stop_brake = d->stop_brake;
     s->encoder_reverse = d->encoder_reverse;
@@ -81,7 +81,7 @@ static void from_saved(const mas_can_node_md_saved_t *d, mas_can_md_settings_t *
     s->max_accel_rpm_s = d->max_accel_rpm_s;
 }
 
-static bool write_saved(mas_can_node_t *n) {
+static bool write_saved(mas_can_node_t* n) {
     n->saved.magic = SAVED_MAGIC;
     n->saved.version = SAVED_VERSION;
     n->saved.crc = crc32(&n->saved, offsetof(mas_can_node_saved_t, crc));
@@ -90,7 +90,7 @@ static bool write_saved(mas_can_node_t *n) {
 
 /* ---- 共通 ---- */
 
-void mas_can_node_init(mas_can_node_t *n, const mas_can_node_config_t *cfg, uint32_t now_us) {
+void mas_can_node_init(mas_can_node_t* n, const mas_can_node_config_t* cfg, uint32_t now_us) {
     memset(n, 0, sizeof(*n));
     n->cfg = *cfg;
     if (n->cfg.md_count > MAS_CAN_NODE_MD_MAX) n->cfg.md_count = MAS_CAN_NODE_MD_MAX;
@@ -104,14 +104,14 @@ void mas_can_node_init(mas_can_node_t *n, const mas_can_node_config_t *cfg, uint
     if (!valid) memset(&n->saved, 0, sizeof(n->saved));
 
     for (uint8_t i = 0; i < n->cfg.md_count; i++) {
-        mas_can_node_md_t *m = &n->md[i];
+        mas_can_node_md_t* m = &n->md[i];
         burned_defaults(n, &m->set);
         if (n->saved.md[i].valid) from_saved(&n->saved.md[i], &m->set);
         m->last_fb_us = now_us;
     }
 }
 
-void mas_can_node_ready(mas_can_node_t *n, uint32_t now_us) {
+void mas_can_node_ready(mas_can_node_t* n, uint32_t now_us) {
     mas_can_frame_t f;
     if (n->cfg.md_count > 0) {
         mas_can_boot_encode(MAS_CAN_KIND_MD, &f);
@@ -121,9 +121,9 @@ void mas_can_node_ready(mas_can_node_t *n, uint32_t now_us) {
     for (uint8_t i = 0; i < n->cfg.md_count; i++) n->md[i].last_fb_us = now_us;
 }
 
-void mas_can_node_raise_fault(mas_can_node_t *n, uint32_t bits) { n->fault |= bits; }
+void mas_can_node_raise_fault(mas_can_node_t* n, uint32_t bits) { n->fault |= bits; }
 
-static void stop_all(mas_can_node_t *n) {
+static void stop_all(mas_can_node_t* n) {
     for (uint8_t i = 0; i < n->cfg.md_count; i++) {
         n->md[i].commanded = false;
         n->md[i].unsupported = false;
@@ -132,7 +132,7 @@ static void stop_all(mas_can_node_t *n) {
 
 /* ---- 指令 ---- */
 
-static void handle_md_command(mas_can_node_t *n, const mas_can_frame_t *f, uint32_t now) {
+static void handle_md_command(mas_can_node_t* n, const mas_can_frame_t* f, uint32_t now) {
     mas_can_md_cmd_t cmd;
     uint8_t frame_no;
     if (!mas_can_md_cmd_parse_id(f->id, &cmd, &frame_no) || n->estop) return;
@@ -141,7 +141,7 @@ static void handle_md_command(mas_can_node_t *n, const mas_can_frame_t *f, uint3
         int16_t raw;
         if (ch / MAS_CAN_MD_SLOTS != frame_no || !mas_can_md_cmd_get(f, ch, &raw))
             continue; /* D9 */
-        mas_can_node_md_t *m = &n->md[i];
+        mas_can_node_md_t* m = &n->md[i];
 
         if (!m->commanded || m->mode != (uint8_t)cmd) m->reset_pending = true; /* D21、D23 */
         m->mode = (uint8_t)cmd;
@@ -181,7 +181,7 @@ static void handle_md_command(mas_can_node_t *n, const mas_can_frame_t *f, uint3
 
 enum { ACC_RO, ACC_RW, ACC_CMD };
 
-static void respond(mas_can_node_t *n, const mas_can_setting_t *req, uint8_t result,
+static void respond(mas_can_node_t* n, const mas_can_setting_t* req, uint8_t result,
                     const uint8_t value[4]) {
     mas_can_setting_t s = *req;
     mas_can_frame_t f;
@@ -196,8 +196,8 @@ static void respond(mas_can_node_t *n, const mas_can_setting_t *req, uint8_t res
 }
 
 /* 項目の今の値を v に入れる。項目が無ければ false。acc に読み書きの性質を返す。 */
-static bool item_get(const mas_can_node_t *n, int local, uint8_t item, uint8_t v[4], int *acc) {
-    const mas_can_md_settings_t *s = &n->md[local].set;
+static bool item_get(const mas_can_node_t* n, int local, uint8_t item, uint8_t v[4], int* acc) {
+    const mas_can_md_settings_t* s = &n->md[local].set;
     *acc = ACC_RW;
     memset(v, 0, 4);
     switch (item) {
@@ -272,8 +272,8 @@ static bool item_get(const mas_can_node_t *n, int local, uint8_t item, uint8_t v
 }
 
 /* 書く。範囲外なら 3、能力を超える値は抑えて受け付ける（D19）。 */
-static uint8_t item_set(mas_can_node_t *n, int local, uint8_t item, const uint8_t v[4]) {
-    mas_can_md_settings_t *s = &n->md[local].set;
+static uint8_t item_set(mas_can_node_t* n, int local, uint8_t item, const uint8_t v[4]) {
+    mas_can_md_settings_t* s = &n->md[local].set;
     uint32_t u = mas_can_value_u32(v);
     float x = mas_can_value_f32(v);
     switch (item) {
@@ -313,7 +313,7 @@ static uint8_t item_set(mas_can_node_t *n, int local, uint8_t item, const uint8_
         case 45:
         case 46: {
             if (!finite_nonneg(x)) return MAS_CAN_RES_OUT_OF_RANGE;
-            float *dst = item == 39   ? &s->speed_kp
+            float* dst = item == 39   ? &s->speed_kp
                          : item == 40 ? &s->speed_ki
                          : item == 41 ? &s->speed_kd
                          : item == 45 ? &s->max_speed_rpm
@@ -334,7 +334,7 @@ static uint8_t item_set(mas_can_node_t *n, int local, uint8_t item, const uint8_
     }
 }
 
-static void handle_setting(mas_can_node_t *n, const mas_can_frame_t *f) {
+static void handle_setting(mas_can_node_t* n, const mas_can_frame_t* f) {
     mas_can_setting_t req;
     if (!mas_can_setting_decode(f, &req) || req.response || req.kind != MAS_CAN_KIND_MD) return;
     int local = local_of(n, req.ch);
@@ -398,7 +398,7 @@ static void handle_setting(mas_can_node_t *n, const mas_can_frame_t *f) {
     respond(n, &req, write_saved(n) ? MAS_CAN_RES_OK : MAS_CAN_RES_OTHER, NULL);
 }
 
-void mas_can_node_on_frame(mas_can_node_t *n, const mas_can_frame_t *f, uint32_t now_us) {
+void mas_can_node_on_frame(mas_can_node_t* n, const mas_can_frame_t* f, uint32_t now_us) {
     uint32_t t;
     if (mas_can_is_estop(f)) {
         n->estop = true;
@@ -421,13 +421,13 @@ void mas_can_node_on_frame(mas_can_node_t *n, const mas_can_frame_t *f, uint32_t
 
 /* ---- 周期の処理 ---- */
 
-static bool md_stopped(const mas_can_node_t *n, const mas_can_node_md_t *m) {
+static bool md_stopped(const mas_can_node_t* n, const mas_can_node_md_t* m) {
     return n->estop || n->sync_lost || !m->commanded || m->unsupported ||
            m->out.mode == MAS_CAN_MD_OUT_STOP || m->meas.protecting;
 }
 
-static void send_fb(mas_can_node_t *n, uint8_t i) {
-    const mas_can_node_md_t *m = &n->md[i];
+static void send_fb(mas_can_node_t* n, uint8_t i) {
+    const mas_can_node_md_t* m = &n->md[i];
     float sign = m->set.reverse ? -1.0f : 1.0f;
     mas_can_md_fb_t fb = {0};
     fb.status = (uint8_t)(m->mode << MAS_CAN_MD_ST_MODE_SHIFT);
@@ -448,13 +448,13 @@ static void send_fb(mas_can_node_t *n, uint8_t i) {
     push_tx(n, &f);
 }
 
-void mas_can_node_tick(mas_can_node_t *n, uint32_t now_us) {
+void mas_can_node_tick(mas_can_node_t* n, uint32_t now_us) {
     if (n->synced && !n->sync_lost && elapsed(now_us, n->last_sync_us, SYNC_TIMEOUT_US)) {
         n->sync_lost = true; /* ラッチしない。次の指令から動く */
         stop_all(n);
     }
     for (uint8_t i = 0; i < n->cfg.md_count; i++) {
-        mas_can_node_md_t *m = &n->md[i];
+        mas_can_node_md_t* m = &n->md[i];
         if (m->commanded && elapsed(now_us, m->last_cmd_us, CMD_TIMEOUT_US)) {
             m->commanded = false;
             m->unsupported = false;
@@ -467,11 +467,11 @@ void mas_can_node_tick(mas_can_node_t *n, uint32_t now_us) {
     }
 }
 
-const mas_can_frame_t *mas_can_node_peek_tx(const mas_can_node_t *n) {
+const mas_can_frame_t* mas_can_node_peek_tx(const mas_can_node_t* n) {
     return n->txq_len ? &n->txq[n->txq_head] : NULL;
 }
 
-void mas_can_node_drop_tx(mas_can_node_t *n) {
+void mas_can_node_drop_tx(mas_can_node_t* n) {
     if (!n->txq_len) return;
     n->txq_head = (uint8_t)((n->txq_head + 1) % MAS_CAN_NODE_TXQ);
     n->txq_len--;
@@ -483,10 +483,10 @@ void mas_can_node_drop_tx(mas_can_node_t *n) {
 
 /* ---- MD ---- */
 
-mas_can_md_output_t mas_can_md_output(mas_can_node_t *n, uint8_t local) {
+mas_can_md_output_t mas_can_md_output(mas_can_node_t* n, uint8_t local) {
     mas_can_md_output_t out = {MAS_CAN_MD_OUT_STOP, true, 0.0f, false};
     if (local >= n->cfg.md_count) return out;
-    mas_can_node_md_t *m = &n->md[local];
+    mas_can_node_md_t* m = &n->md[local];
     if (n->estop) {
         out.brake = !n->cfg.md_has_coast; /* E-stop は常に空転（出せなければブレーキに丸める） */
         return out;
@@ -501,10 +501,10 @@ mas_can_md_output_t mas_can_md_output(mas_can_node_t *n, uint8_t local) {
     return out;
 }
 
-void mas_can_md_set_measure(mas_can_node_t *n, uint8_t local, const mas_can_md_measure_t *meas) {
+void mas_can_md_set_measure(mas_can_node_t* n, uint8_t local, const mas_can_md_measure_t* meas) {
     if (local < n->cfg.md_count) n->md[local].meas = *meas;
 }
 
-const mas_can_md_settings_t *mas_can_md_settings(const mas_can_node_t *n, uint8_t local) {
+const mas_can_md_settings_t* mas_can_md_settings(const mas_can_node_t* n, uint8_t local) {
     return local < n->cfg.md_count ? &n->md[local].set : NULL;
 }
