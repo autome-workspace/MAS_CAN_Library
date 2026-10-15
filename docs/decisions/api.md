@@ -58,6 +58,7 @@ API の正典はこの台帳。順番は台帳 → ヘッダ → 見本（`examp
 | ~~API-16~~ | ~~再起動に気づいてから、書けたと応答で確かめるまでは、その ch に止める値だけを送る。アプリからは `w.ready()` が false として見える~~ → API-43 | 10-04 ユーザ | A4 (2) |
 | API-43 | プログラムの値を書けたと応答で確かめるまでは、その ch に止める値だけを送る。アプリからは `w.ready()` が false として見える。主な役目は主制御の起動直後（基板には前のプログラムの刻みが残り、起動の猶予 C-89 も無い）。基板の再起動はほぼ猶予で守れ、これは送り直しが 200 ms を超えたときや FB を切った ch の受け皿 | 10-15 ユーザ | API-16 |
 | API-44 | 最初に FB を受けたとき、刻みを書いていない ch にも既定値（1.0）を書く（主制御だけをリセットすると、前のプログラムの刻みが基板に残るため）。書けるまでは API-43 で止める | 10-15 ユーザ | 保留 2（10-14） |
+| API-45 | `can.waitReady(ms)` は、確保した全 ch が online かつ ready になるまで待つ（FB の無い種類は数えない）。待つ間も中で `update()` を回す。false なら、どの ch が足りないかは `w.online()`、`w.ready()` で見る。`waitOnline(配列, 個数, ms)` は作らない | 10-15 ユーザ | 保留 1（10-14） |
 | API-17 | 設定を書く関数は待たずに戻る。送信と応答の確認は `update()` の中で 1 つずつ進める | 10-04 ユーザ | A4 (3) |
 
 ## 異常
@@ -106,5 +107,5 @@ API の正典はこの台帳。順番は台帳 → ヘッダ → 見本（`examp
 
 - `Md`: `setSpeed`、`setCurrent`、`setDuty(v, brake)`、`stop()`、`stopped()`、`estopLatched()`、`ready()`、`online()`、`speed()`、`current()`、`position()`、`Feedback::currentLimited()`
 - `mcan::countsToRad()`（API-13 の換算の関数の名前）
-- `can.waitOnline(配列, 個数, ms)`（保留の `waitReady` と関係）
+- ~~`can.waitOnline(配列, 個数, ms)`~~ → API-45 の `waitReady(ms)`
 - サーボの取っ手は見本に無い（mini には `setPulseUs`、`release` がある）
