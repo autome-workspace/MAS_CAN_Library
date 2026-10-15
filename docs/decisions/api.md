@@ -82,11 +82,14 @@ API の正典はこの台帳。順番は台帳 → ヘッダ → 見本（`examp
 | API-48 | API-22（止める値を送る、解除でアプリの指令も止める値に戻す）は、他の送り手の E-stop（API-23）のときも同じにする | 10-15 ユーザ | A8 (2)、(3) |
 | API-49 | `w.estopLatched()` は FB の bit 5（E-stop でラッチ中）を返す | 10-15 ユーザ | 見本（試し） |
 
-## MD（`Md`）
+## MD（`Md`）（確認済み 10-15）
 
 | 番号 | 決定 | 日付・誰 | 旧番号・出典 |
 |---|---|---|---|
 | API-25 | `w.feedback()` が `const Md::Feedback&` を返す（電流、速度、位置、duty、状態、受けた時刻、online、状態の bit を読む関数）。中身が変わるのは `update()` の中だけ。個別のゲッタ（`w.speed()` など）も残す | 10-05 ユーザ | A11 |
+| API-50 | `Md` の指令: `setSpeed(rad/s)`、`setCurrent(A)`、`setDuty`（API-40）、`stop()`（今の指令の種類のまま止める値を送る。種類を変えると同じ束の ch とぶつかるため） | 10-15 ユーザ | 見本（試し）、実装のときに足した stop |
+| API-51 | `Md` の状態: `online()`（FB が 200 ms 以内に来ている）、`ready()`（API-43）、`stopped()`（FB の bit 4）、`estopLatched()`（API-49）。FB の個別のゲッタ: `speed()`、`current()`、`position()`（API-13、作るのは後）。`Feedback` は `currentLimited()`（bit 3）などの bit を読む関数を持つ | 10-15 ユーザ | 見本（試し） |
+| API-52 | 同じ束に別の種類の指令の ch が混ざったら、束の中でいちばん小さい番号の ch の種類を送り、ほかの ch は送らない（途絶で止まる）。その ch の `commandConflict()` が true になり、`can.error()` に `CommandConflict` を残す | 10-15 ユーザ | commandConflict（10-05） |
 
 ## コントローラ（`Controller`）
 
@@ -109,7 +112,7 @@ API の正典はこの台帳。順番は台帳 → ヘッダ → 見本（`examp
 
 `examples/api_tour` に書かれているが、まだ決定になっていないもの。
 
-- `Md`: `setSpeed`、`setCurrent`、`setDuty(v, brake)`、`stop()`、`stopped()`、`ready()`、`online()`、`speed()`、`current()`、`position()`、`Feedback::currentLimited()`
+- ~~`Md` の関数~~ → API-50〜52
 - `mcan::countsToRad()`（API-13 の換算の関数の名前）
 - ~~`can.waitOnline(配列, 個数, ms)`~~ → API-45 の `waitReady(ms)`
 - サーボの取っ手は見本に無い（mini には `setPulseUs`、`release` がある）
