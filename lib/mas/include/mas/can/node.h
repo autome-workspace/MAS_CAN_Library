@@ -132,10 +132,8 @@ typedef struct {
     mas_can_node_saved_t saved; /* 保存した値の写し（保存のたびに丸ごと書く） */
     uint32_t fault;             /* 異常の詳細（設定 5） */
     bool estop;                 /* E-stop でラッチ中 */
-    bool synced;                /* 最初の SYNC を受けた */
-    bool sync_lost;             /* SYNC の途絶で止めている */
-    uint32_t last_sync_us;
-    bool ready; /* 起動の知らせを送った後か（FB はその後から。D30） */
+    bool ready;                 /* 起動の知らせを送った後か（FB はその後から。C-37） */
+    uint32_t ready_us;          /* 起動の知らせを送った時刻（猶予の起点。C-89） */
     bool restart_pending;
     mas_can_frame_t txq[MAS_CAN_NODE_TXQ];
     uint8_t txq_head, txq_len;

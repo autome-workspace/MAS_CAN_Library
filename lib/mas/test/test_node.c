@@ -123,6 +123,12 @@ static void test_boot_and_fb(void) {
           (MAS_CAN_MD_ST_FAULT | MAS_CAN_MD_ST_SPEED_INVALID | MAS_CAN_MD_ST_STOPPED));
     mas_can_md_output_t o = mas_can_md_output(&node, 0);
     CHECK(o.mode == MAS_CAN_MD_OUT_STOP && o.brake); // 空転を出せないのでブレーキ
+
+    // 起動の猶予（C-89）: 知らせから 200 ms は指令に従わない
+    send_cmd(MAS_CAN_MD_CMD_CURRENT, 1500, 8);
+    CHECK(mas_can_md_output(&node, 0).mode == MAS_CAN_MD_OUT_STOP);
+    tick_ms(200);
+    drain(out, 8);
 }
 
 static void test_commands(void) {
@@ -175,15 +181,23 @@ static void test_estop_sync(void) {
     mas_can_md_output_t o = mas_can_md_output(&node, 0);
     CHECK(o.mode == MAS_CAN_MD_OUT_CURRENT && o.reset_ctrl); // D21
 
+    // E-stop は常にブレーキ（M-51）
+    f.id = 0;
+    f.rtr = false;
+    f.dlc = 0;
+    mas_can_node_on_frame(&node, &f, now);
+    o = mas_can_md_output(&node, 0);
+    CHECK(o.mode == MAS_CAN_MD_OUT_STOP && o.brake);
+    mas_can_estop_clear_encode(&f);
+    mas_can_node_on_frame(&node, &f, now);
+
+    // SYNC が途絶えても止めない（C-90）
     mas_can_sync_encode(0, &f);
     mas_can_node_on_frame(&node, &f, now);
-    for (int i = 0; i < 26; i++) { // 指令は送り続け、SYNC だけ止める
+    for (int i = 0; i < 30; i++) { // 指令は送り続け、SYNC だけ止める
         send_cmd(MAS_CAN_MD_CMD_CURRENT, 500, 8);
         tick_ms(10);
     }
-    CHECK(mas_can_md_output(&node, 0).mode == MAS_CAN_MD_OUT_STOP);
-    mas_can_node_on_frame(&node, &f, now); // SYNC が戻る
-    send_cmd(MAS_CAN_MD_CMD_CURRENT, 500, 8);
     CHECK(mas_can_md_output(&node, 0).mode == MAS_CAN_MD_OUT_CURRENT);
 }
 

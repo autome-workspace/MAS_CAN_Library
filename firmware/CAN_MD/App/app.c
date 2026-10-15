@@ -88,8 +88,13 @@ static bool flash_load(void *ctx, void *buf, size_t len) {
     return true;
 }
 
+static void motor_brake_now(void);
+
 static bool flash_save(void *ctx, const void *buf, size_t len) {
     (void)ctx;
+    /* 消去と書き込みの間（F042 で 20〜40 ms）は CPU が止まり、割り込みも PWM を変えられない。
+     * 最後の duty のまま出続けないよう、先にブレーキにしておく。次の app_loop で指令に戻る */
+    motor_brake_now();
     FLASH_EraseInitTypeDef er = {FLASH_TYPEERASE_PAGES, SETTINGS_ADDR, 1};
     uint32_t err;
     bool ok = HAL_FLASH_Unlock() == HAL_OK && HAL_FLASHEx_Erase(&er, &err) == HAL_OK;
@@ -211,6 +216,16 @@ void ADC1_IRQHandler(void) {
     applied = on;
 }
 
+static void motor_brake_now(void) {
+    __disable_irq();
+    cmd.mode = MAS_CAN_MD_OUT_STOP;
+    cmd.reset = true;
+    bridge(PWM_FULL_ON, PWM_FULL_ON);
+    __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_2, 0);
+    applied = 0;
+    __enable_irq();
+}
+
 static void motor_command(const mas_can_md_output_t *out, const mas_can_md_settings_t *set) {
     int32_t duty = 0, target = 0;
     uint32_t vref = ma_to_vref(set->current_limit_ma);
@@ -316,7 +331,7 @@ void app_init(void) {
     cfg.uid = unique_id();
     cfg.board_type = 0x00010001u;
     cfg.fw_version = 0x00000100u;       /* 0.1.0 */
-    cfg.protocol_version = 0x00000000u; /* 未定（Q14） */
+    cfg.protocol_version = 0x01000001u; /* 1.0.0-alpha.1（C-71〜74） */
     cfg.md_first_ch = read_dip();
     cfg.md_count = 1;
     cfg.md_has_current = true;

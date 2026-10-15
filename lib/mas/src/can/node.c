@@ -3,7 +3,7 @@
 #include <string.h>
 
 #define CMD_TIMEOUT_US 100000u  /* 指令の途絶 */
-#define SYNC_TIMEOUT_US 250000u /* SYNC の途絶 */
+#define GRACE_US 200000u        /* 起動の猶予（C-89） */
 #define SAVED_MAGIC 0x4D415331u /* "MAS1" */
 #define SAVED_VERSION 1u
 
@@ -118,6 +118,7 @@ void mas_can_node_ready(mas_can_node_t* n, uint32_t now_us) {
         push_tx(n, &f);
     }
     n->ready = true;
+    n->ready_us = now_us;
     for (uint8_t i = 0; i < n->cfg.md_count; i++) n->md[i].last_fb_us = now_us;
 }
 
@@ -136,6 +137,7 @@ static void handle_md_command(mas_can_node_t* n, const mas_can_frame_t* f, uint3
     mas_can_md_cmd_t cmd;
     uint8_t frame_no;
     if (!mas_can_md_cmd_parse_id(f->id, &cmd, &frame_no) || n->estop) return;
+    if (!n->ready || !elapsed(now, n->ready_us, GRACE_US)) return; /* 起動の猶予（C-89） */
     for (uint8_t i = 0; i < n->cfg.md_count; i++) {
         uint8_t ch = (uint8_t)(n->cfg.md_first_ch + i);
         int16_t raw;
@@ -399,7 +401,6 @@ static void handle_setting(mas_can_node_t* n, const mas_can_frame_t* f) {
 }
 
 void mas_can_node_on_frame(mas_can_node_t* n, const mas_can_frame_t* f, uint32_t now_us) {
-    uint32_t t;
     if (mas_can_is_estop(f)) {
         n->estop = true;
         stop_all(n);
@@ -408,10 +409,6 @@ void mas_can_node_on_frame(mas_can_node_t* n, const mas_can_frame_t* f, uint32_t
             n->estop = false; /* D21: 起動直後と同じ状態から（位置は続ける） */
             stop_all(n);
         }
-    } else if (mas_can_sync_decode(f, &t)) {
-        n->synced = true;
-        n->last_sync_us = now_us;
-        n->sync_lost = false;
     } else if (f->id >= 0x210u && f->id <= 0x22Fu) {
         handle_md_command(n, f, now_us);
     } else if (f->id == mas_can_setting_id(MAS_CAN_KIND_MD, 0)) {
@@ -422,7 +419,7 @@ void mas_can_node_on_frame(mas_can_node_t* n, const mas_can_frame_t* f, uint32_t
 /* ---- 周期の処理 ---- */
 
 static bool md_stopped(const mas_can_node_t* n, const mas_can_node_md_t* m) {
-    return n->estop || n->sync_lost || !m->commanded || m->unsupported ||
+    return n->estop || !m->commanded || m->unsupported ||
            m->out.mode == MAS_CAN_MD_OUT_STOP || m->meas.protecting;
 }
 
@@ -449,10 +446,6 @@ static void send_fb(mas_can_node_t* n, uint8_t i) {
 }
 
 void mas_can_node_tick(mas_can_node_t* n, uint32_t now_us) {
-    if (n->synced && !n->sync_lost && elapsed(now_us, n->last_sync_us, SYNC_TIMEOUT_US)) {
-        n->sync_lost = true; /* ラッチしない。次の指令から動く */
-        stop_all(n);
-    }
     for (uint8_t i = 0; i < n->cfg.md_count; i++) {
         mas_can_node_md_t* m = &n->md[i];
         if (m->commanded && elapsed(now_us, m->last_cmd_us, CMD_TIMEOUT_US)) {
@@ -488,7 +481,7 @@ mas_can_md_output_t mas_can_md_output(mas_can_node_t* n, uint8_t local) {
     if (local >= n->cfg.md_count) return out;
     mas_can_node_md_t* m = &n->md[local];
     if (n->estop) {
-        out.brake = !n->cfg.md_has_coast; /* E-stop は常に空転（出せなければブレーキに丸める） */
+        out.brake = true; /* E-stop は常にブレーキ（M-51） */
         return out;
     }
     if (md_stopped(n, m)) {
