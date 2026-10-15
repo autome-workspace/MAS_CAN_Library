@@ -71,7 +71,7 @@ API の正典はこの台帳。順番は台帳 → ヘッダ → 見本（`examp
 | API-20 | すべての取っ手は共通の親 `Device`（種類と ch）を 1 段だけ継承する。virtual は使わない。`onFault` は `void(Device&, uint32_t new_bits)`。特定の相手かは `dev == lift` で比べる | 10-13、10-14 ユーザ | A7 の見直し |
 | API-46 | 設定の失敗は `can.onSettingError(fn)` で知らせる。`void(Device&, uint8_t result)`、result は C-56 の番号で、応答が来なければ 255。どの ch かが分かるように `onFault` と同じ形にする | 10-15 ユーザ | onSettingError（10-05） |
 
-## E-stop
+## E-stop（確認済み 10-15）
 
 | 番号 | 決定 | 日付・誰 | 旧番号・出典 |
 |---|---|---|---|
@@ -79,6 +79,8 @@ API の正典はこの台帳。順番は台帳 → ヘッダ → 見本（`examp
 | API-22 | E-stop の間はアプリの指令の代わりに止める値を送る。解除するときはアプリの指令も止める値に戻す（毎回指令を書き直さない ch は解除後も止まったまま。説明書に書く） | 10-04、10-14 ユーザ | A8 (2) |
 | API-23 | 他の送り手から受けた E-stop は見るだけで送り直さない。`can.estopped()` は true になり、誰かの解除を受けたら終わる | 10-04 ユーザ | A8 (3) |
 | API-24 | 解除は 1 回送り、100 ms 後も FB の bit 5 が立っている基板があれば最大 3 回まで送り直す。それでも残れば異常と同じ道で知らせる | 10-04 ユーザ | A8 (4) |
+| API-48 | API-22（止める値を送る、解除でアプリの指令も止める値に戻す）は、他の送り手の E-stop（API-23）のときも同じにする | 10-15 ユーザ | A8 (2)、(3) |
+| API-49 | `w.estopLatched()` は FB の bit 5（E-stop でラッチ中）を返す | 10-15 ユーザ | 見本（試し） |
 
 ## MD（`Md`）
 
@@ -107,7 +109,7 @@ API の正典はこの台帳。順番は台帳 → ヘッダ → 見本（`examp
 
 `examples/api_tour` に書かれているが、まだ決定になっていないもの。
 
-- `Md`: `setSpeed`、`setCurrent`、`setDuty(v, brake)`、`stop()`、`stopped()`、`estopLatched()`、`ready()`、`online()`、`speed()`、`current()`、`position()`、`Feedback::currentLimited()`
+- `Md`: `setSpeed`、`setCurrent`、`setDuty(v, brake)`、`stop()`、`stopped()`、`ready()`、`online()`、`speed()`、`current()`、`position()`、`Feedback::currentLimited()`
 - `mcan::countsToRad()`（API-13 の換算の関数の名前）
 - ~~`can.waitOnline(配列, 個数, ms)`~~ → API-45 の `waitReady(ms)`
 - サーボの取っ手は見本に無い（mini には `setPulseUs`、`release` がある）
