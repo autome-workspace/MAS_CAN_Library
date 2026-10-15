@@ -51,10 +51,19 @@ typedef enum {
 #define MAS_CAN_MD_MAX_CH 32u
 #define MAS_CAN_MD_SLOTS 4u /* 1 フレームの ch 数 */
 #define MAS_CAN_CONTROLLER_MAX_CH 8u
+#define MAS_CAN_SERVO_MAX_CH 64u
+#define MAS_CAN_SERVO_SLOTS 8u   /* 1 フレームの ch 数（S-1） */
+#define MAS_CAN_SERVO_STOP 255u  /* パルスを止める（S-3） */
+#define MAS_CAN_SERVO_MAX 200u   /* 0〜200: 500 ＋ 値 × 10 µs（S-2） */
 
 /* MD の指令の ID（ch が入るフレーム）。 */
 static inline uint16_t mas_can_md_cmd_id(mas_can_md_cmd_t cmd, uint8_t ch) {
     return (uint16_t)(0x210u + (unsigned)cmd * 8u + ch / MAS_CAN_MD_SLOTS);
+}
+
+/* サーボの指令の ID（ch が入るフレーム。S-1）。 */
+static inline uint16_t mas_can_servo_cmd_id(uint8_t ch) {
+    return (uint16_t)(0x230u + ch / MAS_CAN_SERVO_SLOTS);
 }
 
 /* MD の FB の ID。 */

@@ -1,4 +1,4 @@
 test_core
-test_bus
+test_host
 test_node
 *.o
