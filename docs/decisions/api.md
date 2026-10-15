@@ -53,6 +53,7 @@ API の正典はこの台帳。順番は台帳 → ヘッダ → 見本（`examp
 | API-12 | API に出る値は SI（速度 rad/s、電流 A、上限、最高速度、加速度、ゲインも）。換算はライブラリの中に隠す。float の物理量が基本で、生の整数は別名（`setSpeedRaw(int16_t)` など）。rpm との換算の関数は足さない | 10-04、10-12 ユーザ | A2 |
 | API-13 | 位置は積み上げたカウントの int64 だけ（1 回転 ＝ 65536、電源投入時が 0）。rad への換算は小さな関数で添える | 10-04 ユーザ | A2 |
 | API-14 | 刻みは `setSpeedResolution`／`setCurrentResolution`（rad/s、A per LSB）で指定する。その刻みで送れる最大を `speedRange()`／`currentRange()` で返す（通信しない） | 10-04、10-12 ユーザ | A4 |
+| API-60 | double は使わない。小数はすべて float（32 bit。ESP32 などの FPU は単精度だけで、double はソフトで遅い）。`countsToRad()` も float を返す | 10-15 ユーザ | API-13 |
 | API-40 | `setDuty(float d, bool brake = true)`。d は −1.0〜+1.0、brake は PWM を切っている間の扱い（M-8 の bit 0）。`setDuty(0.0f)` はブレーキで止める。生の値は `setDutyRaw(int16_t)`。FB の duty も −1〜+1 | 10-15 ユーザ | — |
 | API-41 | 位置まわり（原点の関数、基板が再起動したときの扱い）は今は作らない。API-13 は決定として残し、作るのは後 | 10-15 ユーザ | M-52 |
 | API-42 | set 系（指令と設定）は返り値なし（void）。呼んだ時点では値を置くか要求を積むだけで、結果は FB、`ready()`、設定の失敗の知らせで分かる | 10-15 ユーザ | — |

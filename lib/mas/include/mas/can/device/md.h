@@ -10,8 +10,8 @@ namespace mas {
 namespace can {
 
 constexpr int64_t kCountsPerRev = 65536;
-constexpr double countsToRad(int64_t counts) {
-    return counts * (2.0 * 3.14159265358979323846 / kCountsPerRev);
+constexpr float countsToRad(int64_t counts) { // float（32 bit）。2π / 65536 rad / カウント
+    return (float)counts * 9.58738e-5f;
 }
 
 class Md : public Device {

@@ -31,4 +31,5 @@ MAS CAN プロトコル v1 の再設計と、そのライブラリ・ファー�
 - 整形はリポジトリ直下の `.clang-format`（Google を土台にインデント 4）。CubeMX の生成物は触らない。
 - ファイルの置き場所: `include/mas/can/` の直下は立場のもの（`host.h`、`device.h`、`port.h`、`node.h`）だけ。親は `xxx.h`、それを継承する側は `xxx/`（`device/`、`port/`）。`core/` は線の上の形（C、基板と共有）。経緯は library-api-draft.md の「取っ手の置き場所」「ファイルの置き場所」。
 - コメントは要点だけ。説明は docs に書く。
+- double は使わない。小数は float（32 bit。API-60、2026-10-15、ユーザ）。
 - 決定は docs に日付と「ユーザ」を添えて書く。取り消した決定は消さずに取り消し線で残す。
