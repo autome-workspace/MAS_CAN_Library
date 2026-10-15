@@ -24,8 +24,9 @@ API の正典はこの台帳。順番は台帳 → ヘッダ → 見本（`examp
 | API-5 | 取っ手は `can.md(ch)`、`can.controller(ch)` などで受け取る。初めて求めたときに中身を malloc で確保し、解放しない。同じ ch を何度求めても同じ中身。取っ手はコピーしてよい。`w.ch()` で番号を読む | 10-14 ユーザ | A1 |
 | API-6 | 確保に失敗したら何もしない取っ手を返す。`begin()` より前の失敗は `begin()` が false で知らせる | 10-14 ユーザ | A1 |
 | API-7 | 土台は `can.begin(Port&)`。ESP32（`ESP_PLATFORM`）では近道の `can.begin(tx, rx)` も使える。`Esp32Twai::begin(tx, rx)` も同じ順 | 10-14 ユーザ | A9 |
-| ~~API-8~~ | ~~`begin` は bool を返し、失敗の理由は `can.lastError()` で人が読む文字列として読む。失敗が無ければ `""`~~ → API-39 | 10-14 ユーザ | A9 |
-| API-39 | 主制御全体の異常は 2 段: `can.lastError()` がタグ（`enum class Error : uint8_t`、`None` ＝ 0）を返し、`mcan::toString(Error)` が人の読む文字列（`None` は `""`）を返す。`begin` は bool のまま。`lastError()` は最後の 1 つを返す。履歴の扱いは後回し | 10-15 ユーザ | API-8 |
+| ~~API-8~~ | ~~`begin` は bool を返し、失敗の理由は `can.error()` で人が読む文字列として読む。失敗が無ければ `""`~~ → API-39 | 10-14 ユーザ | A9 |
+| ~~API-39~~ | ~~主制御全体の異常は 2 段: `can.error()` がタグ（`enum class Error : uint8_t`、`None` ＝ 0）を返し、`mcan::toString(Error)` が人の読む文字列（`None` は `""`）を返す。`begin` は bool のまま。`lastError()` は最後の 1 つを返す。履歴の扱いは後回し~~ → API-47 | 10-15 ユーザ | API-8 |
+| API-47 | 主制御全体の異常は 2 段: `can.error()` がタグ（`enum class Error : uint8_t`、`None` ＝ 0）を返し、`mcan::toString(Error)` が人の読む文字列（`None` は `""`）を返す。`begin` は bool のまま。名前は `lastError` をやめて `error`。いくつを、いつまで持つか（最後の 1 つか、履歴か、消し方）は未決（open.md） | 10-15 ユーザ | API-39 |
 | API-35 | `Host` のコンストラクタは `constexpr` にし、メンバを 0 から始める（どのグローバルより先にできあがり、別のファイルに書いた取っ手の `can.md(ch)` でも安全）。実装の決まりで、API の形は変わらない | 10-15 ユーザ | — |
 
 ## 送受信のタイミング（確認済み 10-15）
@@ -37,7 +38,7 @@ API の正典はこの台帳。順番は台帳 → ヘッダ → 見本（`examp
 | API-11 | 受信が溢れた回数を `can.rxOverflows()` で読める | 10-12 ユーザ | A3 の見直し |
 | API-36 | `can.flush()`（名前は仮）は、値が変わった指令の束を今すぐ送り、周期送信の時計をそこから数え直す。指令だけが対象で、設定は含まない。全部の値を置いてから 1 回呼ぶ（取っ手の関数に「今すぐ」の引数は付けない。束を何本も送り、途中の値が届くため）。送りすぎの歯止めは無く、使う人の責任 | 10-15 ユーザ | — |
 | API-37 | `can.busLoad()` はバスの使用率（直近 1 秒、0.0〜1.0）を返す。自分が送ったフレームと受けたフレームの長さ（47 bit ＋ 8 × DLC、スタッフィングは推定）から計算する目安 | 10-15 ユーザ | — |
-| API-38 | `can.setBusLoadWarning(割合)` を超えたら `can.lastError()` に残す。主制御全体の異常（バスの使用率、loop の中の確保の失敗など）は `lastError()` に集める | 10-15 ユーザ | A9 |
+| API-38 | `can.setBusLoadWarning(割合)` を超えたら `can.error()` に残す。主制御全体の異常（バスの使用率、loop の中の確保の失敗など）は `lastError()` に集める | 10-15 ユーザ | A9 |
 
 ## 単位と値（確認済み 10-15）
 
@@ -61,13 +62,14 @@ API の正典はこの台帳。順番は台帳 → ヘッダ → 見本（`examp
 | API-45 | `can.waitReady(ms)` は、確保した全 ch が online かつ ready になるまで待つ（FB の無い種類は数えない）。待つ間も中で `update()` を回す。false なら、どの ch が足りないかは `w.online()`、`w.ready()` で見る。`waitOnline(配列, 個数, ms)` は作らない | 10-15 ユーザ | 保留 1（10-14） |
 | API-17 | 設定を書く関数は待たずに戻る。送信と応答の確認は `update()` の中で 1 つずつ進める | 10-04 ユーザ | A4 (3) |
 
-## 異常
+## 異常（確認済み 10-15）
 
 | 番号 | 決定 | 日付・誰 | 旧番号・出典 |
 |---|---|---|---|
 | API-18 | 問い合わせ（`w.hasFault()`、`w.faultDetail()`）とコールバック（`can.onFault(...)`）の両方を用意する。FB の bit 0 が立ったら異常の詳細を 1 回読んで置いておく。基板と話せないことは `w.online()` | 10-04 ユーザ | A7 (1) |
 | API-19 | 再起動の bit 0 だけはライブラリが消す。他の bit はアプリが `w.clearFault()` で消す | 10-04 ユーザ | A7 (2) |
 | API-20 | すべての取っ手は共通の親 `Device`（種類と ch）を 1 段だけ継承する。virtual は使わない。`onFault` は `void(Device&, uint32_t new_bits)`。特定の相手かは `dev == lift` で比べる | 10-13、10-14 ユーザ | A7 の見直し |
+| API-46 | 設定の失敗は `can.onSettingError(fn)` で知らせる。`void(Device&, uint8_t result)`、result は C-56 の番号で、応答が来なければ 255。どの ch かが分かるように `onFault` と同じ形にする | 10-15 ユーザ | onSettingError（10-05） |
 
 ## E-stop
 
