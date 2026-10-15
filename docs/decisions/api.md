@@ -48,6 +48,7 @@ API の正典はこの台帳。順番は台帳 → ヘッダ → 見本（`examp
 | API-14 | 刻みは `setSpeedResolution`／`setCurrentResolution`（rad/s、A per LSB）で指定する。その刻みで送れる最大を `speedRange()`／`currentRange()` で返す（通信しない） | 10-04、10-12 ユーザ | A4 |
 | API-40 | `setDuty(float d, bool brake = true)`。d は −1.0〜+1.0、brake は PWM を切っている間の扱い（M-8 の bit 0）。`setDuty(0.0f)` はブレーキで止める。生の値は `setDutyRaw(int16_t)`。FB の duty も −1〜+1 | 10-15 ユーザ | — |
 | API-41 | 位置まわり（原点の関数、基板が再起動したときの扱い）は今は作らない。API-13 は決定として残し、作るのは後 | 10-15 ユーザ | M-52 |
+| API-42 | set 系（指令と設定）は返り値なし（void）。呼んだ時点では値を置くか要求を積むだけで、結果は FB、`ready()`、設定の失敗の知らせで分かる | 10-15 ユーザ | — |
 
 ## プログラムの値と再起動
 
