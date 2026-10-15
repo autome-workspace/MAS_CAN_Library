@@ -56,6 +56,8 @@ class Host {
     bool begin(Port& port);
 #if defined(ESP_PLATFORM)
     bool begin(int tx, int rx); // ESP32 の近道（tx, rx の順）
+#elif defined(ARDUINO_ARCH_RP2040)
+    bool begin(int tx, int rx, int pio = 1); // RP2040 の近道（can2040。PIO 0 か 1）
 #endif
 
     // ---- 取っ手（API-5。初めて求めたときに中身を確保する） ----

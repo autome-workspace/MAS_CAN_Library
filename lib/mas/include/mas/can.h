@@ -11,4 +11,6 @@
 
 #if defined(ESP_PLATFORM)
 #include "can/port/esp32_twai.h"
+#elif defined(ARDUINO_ARCH_RP2040)
+#include "can/port/rp2040_can2040.h"
 #endif

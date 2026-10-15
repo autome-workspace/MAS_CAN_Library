@@ -4,7 +4,14 @@
   "description": "MAS libraries (CAN: protocol v1, work in progress)",
   "keywords": ["can", "robot"],
   "frameworks": ["arduino"],
-  "platforms": ["espressif32"],
+  "platforms": ["espressif32", "raspberrypi"],
+  "dependencies": [
+    {
+      "name": "ACAN2040",
+      "version": "https://github.com/obdevel/ACAN2040.git#1.0.6",
+      "platforms": ["raspberrypi"]
+    }
+  ],
   "build": {
     "includeDir": "include",
     "srcDir": "src"
