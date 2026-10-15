@@ -8,7 +8,7 @@ MAS CAN プロトコル v1 と、主制御のライブラリの**今の決定**�
 |---|---|---|
 | [common.md](common.md) | C- | 共通の土台（物理層、ID の骨格、E-stop、SYNC、起動の知らせ、周期指令の共通の規則、設定の仕組み） |
 | [md.md](md.md) | M- | モータードライバー |
-| servo.md | S- | サーボ（作成予定） |
+| [servo.md](servo.md) | S- | サーボ |
 | api.md | API- | 主制御のライブラリ（作成予定） |
 | reserved.md | R- | 他の種類。ID と種類の番号の予約だけ（作成予定） |
 | [open.md](open.md) | — | 未決の一覧 |
