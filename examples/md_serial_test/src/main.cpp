@@ -10,7 +10,6 @@
 
 namespace mcan = mas::can;
 
-mcan::Esp32Twai twai;
 mcan::Host can;
 mcan::Md md = can.md(0);
 
@@ -66,8 +65,7 @@ void handleLine(String line) {
 void setup() {
     Serial.begin(115200);
     delay(500);
-    Serial.println(twai.begin(GPIO_NUM_5, GPIO_NUM_4) ? "TWAI ok" : "TWAI failed");
-    can.begin(twai);
+    Serial.println(can.begin(CAN_TX, CAN_RX) ? "CAN ok" : mcan::toString(can.error()));
     can.onFault(onFault);
     can.onSettingError(onSettingError);
     Serial.println("ch N / d X / i X / s / e / c / x");
