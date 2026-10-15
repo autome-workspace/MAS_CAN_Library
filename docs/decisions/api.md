@@ -17,6 +17,12 @@ API の正典はこの台帳。順番は台帳 → ヘッダ → 見本（`examp
 | ~~API-33~~ | ~~ハードウェアの窓口は `Port`。必ず書くのは `bool send(const Frame&)`、`bool receive(Frame&)`（無ければ false。`update()` は false まで読む）、`uint32_t micros()`。受信の溢れの数 `uint32_t rxOverflows()` は任意で、既定は 0（数えられるポートだけ上書きする。ESP32 は `twai_get_status_info()` の rx_missed と rx_overrun）。残りの数は返さない（安く取れない部品があり、知りたいのは失ったかどうか）。実装は `port/` に置く（ESP32 は `Esp32Twai`）~~ → API-34 | 10-15 ユーザ | API-4、A3 の見直し |
 | API-34 | ハードウェアの窓口は `Port`。必ず書くのは `bool send(const Frame&)`、`bool receive(Frame&)`（無ければ false。`update()` は false まで読む）、`uint32_t micros()`、`uint32_t rxOverflows()`（受信の溢れの数。すべて `= 0`。数えられない部品のポートは 0 を返すように書く。ESP32 は `twai_get_status_info()` の rx_missed と rx_overrun）。残りの数は返さない（安く取れない部品があり、知りたいのは失ったかどうか）。実装は `port/` に置く（ESP32 は `Esp32Twai`） | 10-15 ユーザ | API-33 |
 
+## 動詞の決まり
+
+| 番号 | 決定 | 日付・誰 | 旧番号・出典 |
+|---|---|---|---|
+| API-58 | 指令（今どう動くか。毎周期送る）は `set`、設定（どう振る舞うか）は `config` で始める。基板に書く設定も、ライブラリの中だけの設定も `config`。この台帳の他の行の設定の名前は読み替える: `setSpeedResolution` → `configSpeedResolution`、`setCurrentResolution` → `configCurrentResolution`、`setDeadzone` → `configDeadzone`、`setCalibration` → `configCalibration`、`setBusLoadWarning` → `configBusLoadWarning`、`Pin` の `setMode`／`setPull`／`setInvert`／`setDebounce`／`setHoldOnLoss` → `config…`、`Air::setHoldOnLoss` → `configHoldOnLoss`。CTRE（Phoenix 5）の set と config の先例 | 10-15 ユーザ | — |
+
 ## 初期化（確認済み 10-15）
 
 | 番号 | 決定 | 日付・誰 | 旧番号・出典 |
