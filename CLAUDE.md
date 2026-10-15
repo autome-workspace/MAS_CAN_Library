@@ -11,14 +11,9 @@ MAS CAN プロトコル v1 の再設計と、そのライブラリ・ファー�
 - `api_tour` の役目（2026-10-15、ユーザ）: (1) 決定済みの API を一通り呼び、ビルドが通ればヘッダが台帳と食い違っていないと分かる道具。(2) 使い心地を試す場所（見本にしか無いものは「試し」で、台帳に書いて決定になる）。部員に教える例にはしない（密度が高い。教える例は必要になったら小さく分けて作る）。
 - 2026-10-14 までの経緯は `docs/redesign/library-api-draft.md`（凍結）。API の決定は `docs/decisions/api.md` に書き、残りの保留は `docs/decisions/open.md` にある。
 
-## 作業場（git worktree）
+## 作業場
 
-| 場所 | ブランチ | 中身 |
-|---|---|---|
-| リポジトリの直下 | `next` | ユーザが書き直す場所 |
-| `.ref/` | タグ `ref-claude-impl` | Claude が書いた旧実装の写し。**読むだけ**（編集しても `next` に入らない） |
-
-`.ref/` は `.gitignore` 済み。`mini`（`.mini/`）は 2026-10-15 に消した（CAN-Servo のファームは `firmware/CAN-Servo-v1` に移した）。
+作業はリポジトリの直下（`next`）だけで行う。worktree の `.ref/`（旧実装の写し）と `.mini/`（`mini` ブランチ）は 2026-10-15 に消した。旧実装はタグ `ref-claude-impl` に残っている。CAN-Servo のファームは `firmware/CAN-Servo-v1` に移した。
 
 ## テストとビルド
 
