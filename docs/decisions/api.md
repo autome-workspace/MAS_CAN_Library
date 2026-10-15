@@ -6,14 +6,15 @@ API の正典はこの台帳。順番は台帳 → ヘッダ → 見本（`examp
 
 共通の部分は [common.md](common.md)。書き方は [README.md](README.md)。
 
-## 名前と置き場所
+## 名前と置き場所（確認済み 10-15）
 
 | 番号 | 決定 | 日付・誰 | 旧番号・出典 |
 |---|---|---|---|
 | API-1 | 名前空間は `mas::can`、ヘッダの入口は `<mas/can.h>`、PlatformIO のライブラリ「mas」（`lib/mas/`）。C の部分の接頭辞は `mas_can_`。長ければ `namespace mcan = mas::can;` | 10-04 ユーザ | A1 |
 | API-2 | 立場の名前: 主制御 ＝ `Host`、基板 ＝ Node、ch（種類 ＋ 番号）＝ `Device`。`Bus` は使わない。Host は Node を意識しない。ユーザは「Device」の呼び方に満足していない（よい名前があれば変える）。`Channel` は `ch()` と重なるので採らない | 10-14 ユーザ | 主制御のクラスの名前、立場の名前 |
 | API-3 | `include/mas/can/` の直下は立場のもの（`host.h`、`device.h`、`port.h`、`node.h`）だけ。親は `xxx.h`、継承する側は `xxx/`（`device/md.h` など、`port/esp32_twai.h`）。`core/` は線の上の形（C、基板と共有） | 10-14 ユーザ | ファイルの置き場所、取っ手の置き場所 |
-| API-4 | ハードウェアの窓口は `Port`（send、receive、micros、受信の溢れの数）。実装は `port/` に置く（ESP32 は `Esp32Twai`） | 10-14 ユーザ | ファイルの置き場所 |
+| ~~API-4~~ | ~~ハードウェアの窓口は `Port`（send、receive、micros、受信の溢れの数）。実装は `port/` に置く（ESP32 は `Esp32Twai`）~~ → API-33 | 10-14 ユーザ | ファイルの置き場所 |
+| API-33 | ハードウェアの窓口は `Port`。必ず書くのは `bool send(const Frame&)`、`bool receive(Frame&)`（無ければ false。`update()` は false まで読む）、`uint32_t micros()`。受信の溢れの数 `uint32_t rxOverflows()` は任意で、既定は 0（数えられるポートだけ上書きする。ESP32 は `twai_get_status_info()` の rx_missed と rx_overrun）。残りの数は返さない（安く取れない部品があり、知りたいのは失ったかどうか）。実装は `port/` に置く（ESP32 は `Esp32Twai`） | 10-15 ユーザ | API-4、A3 の見直し |
 
 ## 初期化
 
