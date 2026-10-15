@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "mas/can/core/md.h"
+#include "mas/can/core/md_frame.h"
 #include "mas/can/core/setting.h"
 
 static int failures = 0;

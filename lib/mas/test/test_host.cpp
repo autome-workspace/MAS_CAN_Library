@@ -6,7 +6,7 @@
 #include <vector>
 
 #include "mas/can.h"
-#include "mas/can/core/md.h"
+#include "mas/can/core/md_frame.h"
 #include "mas/can/core/setting.h"
 
 namespace mcan = mas::can;

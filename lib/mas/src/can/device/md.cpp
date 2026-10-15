@@ -1,7 +1,7 @@
 #include "mas/can/device/md.h"
 
 #include "../state.h"
-#include "mas/can/core/md.h"
+#include "mas/can/core/md_frame.h"
 #include "mas/can/core/setting.h"
 
 namespace mas {

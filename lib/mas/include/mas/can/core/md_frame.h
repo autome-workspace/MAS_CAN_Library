@@ -2,8 +2,8 @@
  *
  * 値は生の整数（LSB は基板の分解能の設定による）。SI との換算は上の層が行う。
  */
-#ifndef MAS_CAN_CORE_MD_H
-#define MAS_CAN_CORE_MD_H
+#ifndef MAS_CAN_CORE_MD_FRAME_H
+#define MAS_CAN_CORE_MD_FRAME_H
 
 #include "frame.h"
 
@@ -76,4 +76,4 @@ int32_t mas_can_u24_diff(uint32_t now, uint32_t prev);
 }
 #endif
 
-#endif /* MAS_CAN_CORE_MD_H */
+#endif /* MAS_CAN_CORE_MD_FRAME_H */

@@ -2,7 +2,7 @@
 
 #include <new>
 
-#include "mas/can/core/md.h"
+#include "mas/can/core/md_frame.h"
 #include "mas/can/core/setting.h"
 #include "state.h"
 

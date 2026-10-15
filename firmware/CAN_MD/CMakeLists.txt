@@ -46,7 +46,7 @@ target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user sources here
     App/app.c
-    ../../lib/mas/src/can/core/md.c
+    ../../lib/mas/src/can/core/md_frame.c
     ../../lib/mas/src/can/core/setting.c
     ../../lib/mas/src/can/node.c
 )

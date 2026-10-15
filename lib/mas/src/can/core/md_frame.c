@@ -1,4 +1,4 @@
-#include "mas/can/core/md.h"
+#include "mas/can/core/md_frame.h"
 
 int16_t mas_can_md_stop_value(mas_can_md_cmd_t cmd) {
     return cmd == MAS_CAN_MD_CMD_POSITION ? MAS_CAN_MD_POSITION_STOP : 0;
