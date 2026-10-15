@@ -17,14 +17,14 @@ MAS CAN プロトコル v1 の再設計と、そのライブラリ・ファー�
 |---|---|---|
 | リポジトリの直下 | `next` | ユーザが書き直す場所 |
 | `.ref/` | タグ `ref-claude-impl` | Claude が書いた旧実装の写し。**読むだけ**（編集しても `next` に入らない） |
-| `.mini/` | `mini` | 部ですぐ使う最低限の版（Claude が書いた。API は同じ、中身は固定の配列）。CAN-Servo 基板の v1 のファームもここ。説明は `mini` の `docs/mini.md` |
 
-`.ref/` と `.mini/` は `.gitignore` 済み。`mini` は答え合わせに使えるが、写すと自分で把握する目的から外れるので、見るなら書いた後。
+`.ref/` は `.gitignore` 済み。`mini`（`.mini/`）は 2026-10-15 に消した（CAN-Servo のファームは `firmware/CAN-Servo-v1` に移した）。
 
 ## テストとビルド
 
-- PC のテスト: `make -C lib/mas/test`。基板側のコア（`test_core`、`test_node`）は通る。主制御側のテストは `test_host.cpp` として書く予定（旧版は `.ref/lib/mas/test/test_bus.cpp`。旧版の `Bus` は今の `Host`）。
-- 例のビルド: `examples/<名前>` で `pio run`。
+- PC のテスト: `make -C lib/mas/test`（`test_core`、`test_node`、`test_host`）。
+- 例と RP2040 のファームのビルド: そのフォルダで `pio run`（`examples/api_tour`、`examples/md_serial_test`、`firmware/CAN-Servo-v1`）。
+- MD のファーム: `firmware/CAN_MD` を CMake で **Release** でビルドする（Debug は FLASH に入らない）。コンパイラは `~/.local/share/stm32cube/bundles/gnu-tools-for-stm32/*/bin`。
 
 ## 書き方
 
