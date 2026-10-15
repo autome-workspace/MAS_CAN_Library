@@ -10,7 +10,7 @@ MAS CAN プロトコル v1 の再設計と、そのライブラリ・ファー�
 
 - **Claude は補助に回る。代わりに書かない。** 一歩ずつ「どのファイルのどこに、何を、なぜ書くか」を前提から説明し、ユーザが書いたものをレビューし、テストで確かめる。Claude が書くのは、ユーザに頼まれた部分だけ。
 - 目標は `examples/api_tour/src/main.cpp` がビルドできること。**API の正典は `docs/decisions/api.md`**（2026-10-14、ユーザ）。順番は台帳 → ヘッダ → 見本。使用感を見るために見本で先に試してもよいが、見本にしか無いものは「試し」で、台帳に書いて決定になる。
-- 決定の経緯は `docs/redesign/library-api-draft.md` の「API を固める」節。保留の論点（`waitReady`、刻みの既定値の書き込み、loop の中の確保の失敗、A10、A11、`stop`／`commandConflict`／`onSettingError`、Q34）は、ユーザが実装しながら決め、決めたら同じ節の表に書き足す。
+- 2026-10-14 までの経緯は `docs/redesign/library-api-draft.md`（凍結）。API の決定は `docs/decisions/api.md` に書き、残りの保留は `docs/decisions/open.md` にある。
 
 ## 作業場（git worktree）
 
