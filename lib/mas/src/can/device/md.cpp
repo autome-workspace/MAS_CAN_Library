@@ -53,8 +53,8 @@ void Md::configCurrentResolution(float amps_per_lsb) {
     MdState* m = MD;
     if (!m || !(amps_per_lsb > 0)) return;
     m->current_lsb_ma = amps_per_lsb * 1000.0f;
-    m->current_pending = true;
-    m->host->queueResolutions(m, false);
+    m->current_pending = true; // Host が空いたときに書きに行く
+    m->lsb_hold = false;
 }
 
 void Md::configSpeedResolution(float radps_per_lsb) {
@@ -62,7 +62,7 @@ void Md::configSpeedResolution(float radps_per_lsb) {
     if (!m || !(radps_per_lsb > 0)) return;
     m->speed_lsb_rpm = radps_per_lsb * (60.0f / kTwoPi);
     m->speed_pending = true;
-    m->host->queueResolutions(m, false);
+    m->lsb_hold = false;
 }
 
 float Md::currentRange() const {
@@ -109,7 +109,7 @@ void Md::clearFault() {
     r.item = MAS_CAN_ITEM_FAULT_DETAIL;
     r.tag = detail::ReqTag::ClearFault;
     mas_can_value_set_u32(r.value, m->fault_detail);
-    if (m->host->queueSetting(r, false)) {
+    if (m->host->queueSetting(r)) {
         m->fault_detail = 0;
         m->fault_known = false; // まだ続いていれば、次の FB で読み直す
     }

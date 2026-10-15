@@ -31,6 +31,8 @@ struct MdState : DeviceState {
     // プログラムの値（API-14、API-43、API-44）。基板に書けたと確かめるまで pending
     float current_lsb_ma = 1.0f, speed_lsb_rpm = 1.0f;
     bool current_pending = true, speed_pending = true;
+    bool lsb_hold = false; // 失敗したので lsb_retry_us から少し待つ
+    uint32_t lsb_retry_us = 0;
 
     // FB
     Md::Feedback fb;

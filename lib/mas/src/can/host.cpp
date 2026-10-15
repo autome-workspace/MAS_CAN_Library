@@ -29,6 +29,7 @@ constexpr uint8_t kReqRetries = 2;
 constexpr uint8_t kClearRetries = 3;
 constexpr uint32_t kLoadWindowUs = 1000000;
 constexpr float kTwoPi = 6.28318530718f;
+constexpr uint32_t kLsbRetryUs = 1000000; // 刻みの書き込みに失敗したら、これだけ待って書き直す
 constexpr uint8_t kItemCurrentLsb = 48;
 constexpr uint8_t kItemSpeedLsb = 49;
 
@@ -255,8 +256,7 @@ void Host::handleMdFeedback(const Frame& f, uint32_t now) {
 
     if (!m->fb_seen) {
         fb.position = mas_can_u24_diff(raw.position, 0);
-        m->fb_seen = true;
-        queueResolutions(m, false); // 最初の FB で、プログラムの値を書く（API-44）
+        m->fb_seen = true; // ここから刻みを書きに行く（API-44。pickResolution）
     } else if (!m->relink) {
         fb.position += mas_can_u24_diff(raw.position, m->last_raw_pos);
     }
@@ -281,7 +281,7 @@ void Host::handleMdFeedback(const Frame& f, uint32_t now) {
             r.op = MAS_CAN_OP_READ;
             r.item = MAS_CAN_ITEM_FAULT_DETAIL;
             r.tag = ReqTag::ReadFault;
-            if (queueSetting(r, false)) m->fault_reading = true;
+            if (queueSetting(r)) m->fault_reading = true;
         }
     } else {
         m->fault_known = false;
@@ -293,31 +293,29 @@ void Host::onMdRestart(DeviceState* s) {
     MdState* m = detail::asMd(s);
     if (!m) return;
     m->relink = true; // 基板の位置は 0 から始まり直すので、積み上げた位置を続ける
-    m->current_pending = m->speed_pending = true;
-    queueResolutions(m, true); // ほかの設定より先に送り直す（C-88）
+    m->current_pending = m->speed_pending = true; // ほかの設定より先に送り直す（C-88）
+    m->lsb_hold = false;
 }
 
-void Host::queueResolutions(DeviceState* s, bool front) {
-    MdState* m = detail::asMd(s);
-    if (!m || !m->fb_seen) return; // 基板が見えてから書く（API-44）
-    if (m->speed_pending) {
-        SettingReq r;
-        r.dev = m;
-        r.op = MAS_CAN_OP_WRITE;
-        r.item = kItemSpeedLsb;
-        r.tag = ReqTag::SpeedLsb;
-        mas_can_value_set_f32(r.value, m->speed_lsb_rpm);
-        queueSetting(r, front);
+// 書く必要のある刻みを 1 つ選ぶ。印（pending）が正本なので、列が溢れても取りこぼさない。
+// 失敗した ch は少し待ってから書き直す（基板が見えている間）
+bool Host::pickResolution(uint32_t now, SettingReq& out) {
+    for (DeviceState* s = head_; s; s = s->next) {
+        MdState* m = detail::asMd(s);
+        if (!m || !m->fb_seen || !m->fb.online || (!m->speed_pending && !m->current_pending))
+            continue;
+        if (m->lsb_hold && !elapsed(now, m->lsb_retry_us, kLsbRetryUs)) continue;
+        m->lsb_hold = false;
+        bool speed = m->speed_pending;
+        out = SettingReq();
+        out.dev = m;
+        out.op = MAS_CAN_OP_WRITE;
+        out.item = speed ? kItemSpeedLsb : kItemCurrentLsb;
+        out.tag = speed ? ReqTag::SpeedLsb : ReqTag::CurrentLsb;
+        mas_can_value_set_f32(out.value, speed ? m->speed_lsb_rpm : m->current_lsb_ma);
+        return true;
     }
-    if (m->current_pending) {
-        SettingReq r;
-        r.dev = m;
-        r.op = MAS_CAN_OP_WRITE;
-        r.item = kItemCurrentLsb;
-        r.tag = ReqTag::CurrentLsb;
-        mas_can_value_set_f32(r.value, m->current_lsb_ma);
-        queueSetting(r, front);
-    }
+    return false;
 }
 
 void Host::sendMd(bool only_dirty, uint32_t now) {
@@ -343,7 +341,11 @@ void Host::sendMd(bool only_dirty, uint32_t now) {
         mas_can_md_cmd_init(&f, toCmd(primary), base);
         for (uint8_t i = 0; i < MAS_CAN_MD_SLOTS; i++) {
             MdState* m = slot[i];
-            if (!m || m->conflict) continue;
+            if (!m) continue;
+            if (m->conflict) {
+                m->dirty = false; // 送れない ch で flush を繰り返さない
+                continue;
+            }
             int16_t v = 0; // 止める値（電流、速度、duty はどれも 0）
             if (!estopped() && ready(*m)) {
                 if (m->raw) {
@@ -419,9 +421,8 @@ void Host::handleController(const Frame& f, uint32_t now) {
 
 // ---- 設定の要求（1 つずつ。C-51） ----
 
-bool Host::queueSetting(const SettingReq& req, bool front) {
-    uint8_t first = req_active_ ? 1 : 0; // 送っている最中のものは触らない
-    for (uint8_t i = first; i < q_len_; i++) {
+bool Host::queueSetting(const SettingReq& req) {
+    for (uint8_t i = 0; i < q_len_; i++) {
         SettingReq& q = queue_[i];
         if (q.tag == req.tag && q.dev == req.dev) { // 同じ目的が待っていれば値だけ差し替える
             q = req;
@@ -429,27 +430,26 @@ bool Host::queueSetting(const SettingReq& req, bool front) {
         }
     }
     if (q_len_ >= kQueue) return false;
-    uint8_t at = front ? first : q_len_;
-    for (uint8_t i = q_len_; i > at; i--) queue_[i] = queue_[i - 1];
-    queue_[at] = req;
-    q_len_++;
+    queue_[q_len_++] = req;
     return true;
 }
 
-void Host::popSetting() {
-    for (uint8_t i = 1; i < q_len_; i++) queue_[i - 1] = queue_[i];
-    if (q_len_) q_len_--;
+void Host::finishActive() {
+    if (active_from_queue_) {
+        for (uint8_t i = 1; i < q_len_; i++) queue_[i - 1] = queue_[i];
+        if (q_len_) q_len_--;
+    }
     req_active_ = false;
     req_retries_ = 0;
 }
 
 void Host::handleSettingResponse(const Frame& f) {
     if (!req_active_) return;
-    const SettingReq req = queue_[0];
+    const SettingReq req = active_;
     mas_can_setting_t s;
     if (!mas_can_setting_decode(&f, &s)) return;
     if (s.ch != req.dev->ch || s.item != req.item || s.op != req.op || s.seq != req_seq_) return;
-    popSetting();
+    finishActive();
 
     MdState* m = detail::asMd(req.dev);
     if (!m) return;
@@ -458,13 +458,22 @@ void Host::handleSettingResponse(const Frame& f) {
         case ReqTag::CurrentLsb:
         case ReqTag::SpeedLsb: {
             bool cur = req.tag == ReqTag::CurrentLsb;
-            if (s.result != MAS_CAN_RES_OK) {
+            float& lsb = cur ? m->current_lsb_ma : m->speed_lsb_rpm;
+            bool& pending = cur ? m->current_pending : m->speed_pending;
+            if (s.result != MAS_CAN_RES_OK) { // 断られた。直るまで止める値のまま
+                m->lsb_hold = true;
+                m->lsb_retry_us = port_->micros();
                 if (setting_error_handler_) setting_error_handler_(dev, s.result);
                 break;
             }
-            // 待っている間にアプリが値を変えていれば、まだ書けていない
-            float want = cur ? m->current_lsb_ma : m->speed_lsb_rpm;
-            if (mas_can_value_f32(s.value) == want) (cur ? m->current_pending : m->speed_pending) = false;
+            float sent = mas_can_value_f32(req.value);
+            if (lsb != sent) break; // 待っている間にアプリが値を変えた。次に書き直す
+            float got = mas_can_value_f32(s.value);
+            pending = false;
+            if (got != sent && got > 0) { // 基板が抑えた（M-43）。基板の値で換算し、知らせる
+                lsb = got;
+                if (setting_error_handler_) setting_error_handler_(dev, MAS_CAN_RES_OK);
+            }
             break;
         }
         case ReqTag::ReadFault: {
@@ -480,7 +489,7 @@ void Host::handleSettingResponse(const Frame& f) {
                 c.item = MAS_CAN_ITEM_FAULT_DETAIL;
                 c.tag = ReqTag::ClearFault;
                 mas_can_value_set_u32(c.value, MAS_CAN_FAULT_RESTARTED);
-                queueSetting(c, false);
+                queueSetting(c);
             }
             uint32_t others = bits & ~(uint32_t)MAS_CAN_FAULT_RESTARTED;
             uint32_t fresh = others & ~m->fault_detail;
@@ -497,36 +506,48 @@ void Host::serviceSettings(uint32_t now) {
     if (req_active_) {
         if (!elapsed(now, req_sent_us_, kReqTimeoutUs)) return;
         if (req_retries_ < kReqRetries) {
-            req_retries_++;
-            req_active_ = false; // 下で送り直す
+            req_retries_++; // 下で同じ要求を送り直す
         } else {
-            const SettingReq failed = queue_[0];
-            popSetting();
+            const SettingReq failed = active_;
+            finishActive();
             MdState* m = detail::asMd(failed.dev);
             if (m && failed.tag == ReqTag::ReadFault) m->fault_reading = false;
-            if (m && (failed.tag == ReqTag::CurrentLsb || failed.tag == ReqTag::SpeedLsb) &&
-                setting_error_handler_) {
-                Device dev(m);
-                setting_error_handler_(dev, 255);
+            if (m && (failed.tag == ReqTag::CurrentLsb || failed.tag == ReqTag::SpeedLsb)) {
+                m->lsb_hold = true; // 少し待って書き直す
+                m->lsb_retry_us = now;
+                if (setting_error_handler_) {
+                    Device dev(m);
+                    setting_error_handler_(dev, 255);
+                }
             }
+            return;
         }
+    } else {
+        // プログラムの値を先に（C-88）、なければ列の先頭
+        if (pickResolution(now, active_)) {
+            active_from_queue_ = false;
+        } else if (q_len_) {
+            active_ = queue_[0];
+            active_from_queue_ = true;
+        } else {
+            return;
+        }
+        req_retries_ = 0;
     }
-    if (req_active_ || q_len_ == 0) return;
 
-    const SettingReq& req = queue_[0];
     mas_can_setting_t s{};
     s.kind = MAS_CAN_KIND_MD;
     s.response = false;
-    s.ch = req.dev->ch;
-    s.op = (mas_can_op_t)req.op;
-    s.item = req.item;
-    for (int i = 0; i < 4; i++) s.value[i] = req.value[i];
+    s.ch = active_.dev->ch;
+    s.op = (mas_can_op_t)active_.op;
+    s.item = active_.item;
+    for (int i = 0; i < 4; i++) s.value[i] = active_.value[i];
     s.seq = ++req_seq_;
     Frame f;
     mas_can_setting_encode(&s, &f);
-    if (!send(f)) return;
-    req_sent_us_ = now;
     req_active_ = true;
+    req_sent_us_ = now;
+    if (!send(f)) req_sent_us_ = now - kReqTimeoutUs; // 送れなければ次の update で送り直す
 }
 
 // ---- E-stop ----

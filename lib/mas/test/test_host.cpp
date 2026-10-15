@@ -218,11 +218,12 @@ static void test_feedback_and_restart() {
     port.tx.clear();
     step(host, port, 1);
     CHECK(!m.ready());
-    const mcan::Frame* req = port.last(0x400);
-    CHECK(req && (req->data[2] == 48 || req->data[2] == 49));
+    CHECK(port.count(0x400) == 0); // 基板が見えるまでは書きに行かない
     pushFb(port, 2, 0x40, 0, 0, 0); // 基板は 0 から
     step(host, port, 1);
     CHECK(m.position() == 16);
+    const mcan::Frame* req = port.last(0x400);
+    CHECK(req && (req->data[2] == 48 || req->data[2] == 49));
     answerAll(host, port);
     CHECK(m.ready());
 }
@@ -411,7 +412,80 @@ static void test_wait_ready_and_misc() {
     CHECK(std::strcmp(mcan::toString(mcan::Error::None), "") == 0);
 }
 
+static int g_errors[4];
+static int g_error_count = 0;
+
+static void test_resolution_robustness() {
+    // 1. 基板が値を抑えて返したら、書けたとみなし、基板の値で換算して知らせる（M-43）
+    FakePort port;
+    mcan::Host host;
+    host.begin(port);
+    g_error_count = 0;
+    host.onSettingError([](mcan::Device&, uint8_t result) {
+        if (g_error_count < 4) g_errors[g_error_count++] = result;
+    });
+    mcan::Md m = host.md(0);
+    m.configSpeedResolution(0.0001f); // 細かすぎる刻み
+    pushFb(port, 0);
+    for (int i = 0; i < 20 && !m.ready(); i++) {
+        port.tx.clear();
+        step(host, port, 1);
+        const mcan::Frame* req = port.last(0x400);
+        if (!req) continue;
+        mas_can_setting_t s;
+        mas_can_setting_decode(req, &s);
+        if (s.item == 49) {
+            mas_can_value_set_f32(s.value, 0.01f); // 基板の下限に抑えた
+            s.response = true;
+            s.result = MAS_CAN_RES_OK;
+            mcan::Frame f;
+            mas_can_setting_encode(&s, &f);
+            port.rx.push_back(f);
+        } else {
+            respond(port, *req, MAS_CAN_RES_OK);
+        }
+        pushFb(port, 0);
+    }
+    CHECK(m.ready());
+    CHECK(g_error_count == 1 && g_errors[0] == MAS_CAN_RES_OK);
+    CHECK(std::fabs(m.speedRange() - 0.01f * 6.2831853f / 60 * 32767) < 0.01f);
+
+    // 2. MD が多くても取りこぼさない（列の大きさ 16 を超える）
+    FakePort p2;
+    mcan::Host h2;
+    h2.begin(p2);
+    mcan::Md many[12];
+    for (int i = 0; i < 12; i++) many[i] = h2.md((uint8_t)i);
+    for (int r = 0; r < 60; r++) {
+        for (int i = 0; i < 12; i++) pushFb(p2, (uint8_t)i);
+        const mcan::Frame* req = p2.last(0x400);
+        if (req && req->data[7] != p2.answered_seq) {
+            p2.answered_seq = req->data[7];
+            respond(p2, *req, MAS_CAN_RES_OK);
+        }
+        step(h2, p2, 1);
+    }
+    bool all = true;
+    for (int i = 0; i < 12; i++) all &= many[i].ready();
+    CHECK(all);
+
+    // 3. 応答が来ずに失敗しても、基板が見えていれば少し待って書き直す
+    FakePort p3;
+    mcan::Host h3;
+    h3.begin(p3);
+    mcan::Md w = h3.md(1);
+    for (int i = 0; i < 200; i++) { // 応答しない
+        pushFb(p3, 1);
+        step(h3, p3, 1);
+    }
+    CHECK(!w.ready());
+    for (int i = 0; i < 1100; i++) pushFb(p3, 1), step(h3, p3, 1); // 1 秒待つ
+    answerAll(h3, p3, 40);
+    CHECK(w.ready());
+}
+
 int main() {
+    test_resolution_robustness();
     test_ready_and_commands();
     test_bundle_and_flush();
     test_feedback_and_restart();

@@ -100,9 +100,9 @@ class Host {
     void handleController(const Frame& f, uint32_t now);
     void handleSettingResponse(const Frame& f);
     void onMdRestart(detail::DeviceState* s);
-    void queueResolutions(detail::DeviceState* s, bool front);
-    void popSetting();
-    bool queueSetting(const detail::SettingReq& req, bool front);
+    bool pickResolution(uint32_t now, detail::SettingReq& out);
+    void finishActive();
+    bool queueSetting(const detail::SettingReq& req);
     void serviceSettings(uint32_t now);
     void serviceEstop(uint32_t now);
     void sendMd(bool only_dirty, uint32_t now);
@@ -128,8 +128,10 @@ class Host {
     uint32_t clear_check_us_ = 0;
 
     static constexpr uint8_t kQueue = 16;
-    detail::SettingReq queue_[kQueue] = {};
-    uint8_t q_len_ = 0; // queue_[0] が先頭
+    detail::SettingReq queue_[kQueue] = {}; // 刻み以外の要求（異常の読み出しなど）
+    uint8_t q_len_ = 0;                     // queue_[0] が先頭
+    detail::SettingReq active_ = {};        // 応答を待っている要求
+    bool active_from_queue_ = false;
     bool req_active_ = false;
     uint8_t req_seq_ = 0, req_retries_ = 0;
     uint32_t req_sent_us_ = 0;
