@@ -65,6 +65,7 @@ void handleLine(String line) {
 void setup() {
     Serial.begin(115200);
     delay(500);
+    // RP2040 は 3 つ目の引数で PIO のブロックを選べる（既定 1）: can.begin(CAN_TX, CAN_RX, 0)
     Serial.println(can.begin(CAN_TX, CAN_RX) ? "CAN ok" : mcan::toString(can.error()));
     can.onFault(onFault);
     can.onSettingError(onSettingError);

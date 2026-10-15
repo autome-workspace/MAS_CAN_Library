@@ -9,6 +9,7 @@ mcan::Md motor = can.md(0); // ch 0 の MD（基板の DIP で決まる）
 
 void setup() {
     Serial.begin(115200);
+    // RP2040 は 3 つ目の引数で PIO のブロックを選べる（既定 1）: can.begin(CAN_TX, CAN_RX, 0)
     if (!can.begin(CAN_TX, CAN_RX)) Serial.println(mcan::toString(can.error()));
     if (!can.waitReady(1000)) Serial.println("MD not ready");
 }
