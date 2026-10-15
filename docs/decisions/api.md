@@ -91,7 +91,7 @@ API の正典はこの台帳。順番は台帳 → ヘッダ → 見本（`examp
 | API-51 | `Md` の状態: `online()`（FB が 200 ms 以内に来ている）、`ready()`（API-43）、`stopped()`（FB の bit 4）、`estopLatched()`（API-49）。FB の個別のゲッタ: `speed()`、`current()`、`position()`（API-13、作るのは後）。`Feedback` は `currentLimited()`（bit 3）などの bit を読む関数を持つ | 10-15 ユーザ | 見本（試し） |
 | API-52 | 同じ束に別の種類の指令の ch が混ざったら、束の中でいちばん小さい番号の ch の種類を送り、ほかの ch は送らない（途絶で止まる）。その ch の `commandConflict()` が true になり、`can.error()` に `CommandConflict` を残す | 10-15 ユーザ | commandConflict（10-05） |
 
-## コントローラ（`Controller`）
+## コントローラ（`Controller`）（確認済み 10-15）
 
 | 番号 | 決定 | 日付・誰 | 旧番号・出典 |
 |---|---|---|---|
@@ -99,6 +99,8 @@ API の正典はこの台帳。順番は台帳 → ヘッダ → 見本（`examp
 | API-27 | ボタンは `held(b)`、`pressed(b)`、`released(b)`。瞬間は届いたフレームを全部見て記録する。名前は位置で付ける（`Up` `Down` `Left` `Right`、`North` `South` `West` `East`、`L1` `R1` `L3` `R3`） | 10-04 ユーザ | A6 (2) |
 | API-28 | 200 ms フレームが来なければ `connected()` は false、スティックは 0、ボタンは離した状態 | 10-04 ユーザ | A6 (3) |
 | API-29 | 遊びは既定で無し。`pad.setDeadzone(r)` で選ぶ。スティックごとの円の形で切り、境目から 0 で始めて 1.0 まで伸ばし直す。トリガーにはかけない | 10-04、10-13 ユーザ | A6 (4)、A6 の見直し |
+| API-53 | `Controller` は `online()`（受信機の基板と話せている。FB が 200 ms 来ない）と `connected()`（パッドとの無線がつながっている。状態の bit 12）を両方持つ | 10-15 ユーザ | A6 (3) |
+| API-54 | ボタンに `Select`（中央の左。Share、View、−）と `Start`（中央の右。Options、Menu、＋）を足す。線の上はボタンの欄の bit 14 ＝ Select、bit 15 ＝ Start（spec §11 の予約を使う。reserved.md を作るときにコントローラの台帳へ移す）。Home などは入れない（欄に空きが無く、Home はペアリングに使われることが多い） | 10-15 ユーザ | — |
 
 ## 汎用ピン、エアー、ソレノイド
 
