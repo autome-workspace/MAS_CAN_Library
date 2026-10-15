@@ -14,9 +14,10 @@ API の正典はこの台帳。順番は台帳 → ヘッダ → 見本（`examp
 | API-2 | 立場の名前: 主制御 ＝ `Host`、基板 ＝ Node、ch（種類 ＋ 番号）＝ `Device`。`Bus` は使わない。Host は Node を意識しない。ユーザは「Device」の呼び方に満足していない（よい名前があれば変える）。`Channel` は `ch()` と重なるので採らない | 10-14 ユーザ | 主制御のクラスの名前、立場の名前 |
 | API-3 | `include/mas/can/` の直下は立場のもの（`host.h`、`device.h`、`port.h`、`node.h`）だけ。親は `xxx.h`、継承する側は `xxx/`（`device/md.h` など、`port/esp32_twai.h`）。`core/` は線の上の形（C、基板と共有） | 10-14 ユーザ | ファイルの置き場所、取っ手の置き場所 |
 | ~~API-4~~ | ~~ハードウェアの窓口は `Port`（send、receive、micros、受信の溢れの数）。実装は `port/` に置く（ESP32 は `Esp32Twai`）~~ → API-33 | 10-14 ユーザ | ファイルの置き場所 |
-| API-33 | ハードウェアの窓口は `Port`。必ず書くのは `bool send(const Frame&)`、`bool receive(Frame&)`（無ければ false。`update()` は false まで読む）、`uint32_t micros()`。受信の溢れの数 `uint32_t rxOverflows()` は任意で、既定は 0（数えられるポートだけ上書きする。ESP32 は `twai_get_status_info()` の rx_missed と rx_overrun）。残りの数は返さない（安く取れない部品があり、知りたいのは失ったかどうか）。実装は `port/` に置く（ESP32 は `Esp32Twai`） | 10-15 ユーザ | API-4、A3 の見直し |
+| ~~API-33~~ | ~~ハードウェアの窓口は `Port`。必ず書くのは `bool send(const Frame&)`、`bool receive(Frame&)`（無ければ false。`update()` は false まで読む）、`uint32_t micros()`。受信の溢れの数 `uint32_t rxOverflows()` は任意で、既定は 0（数えられるポートだけ上書きする。ESP32 は `twai_get_status_info()` の rx_missed と rx_overrun）。残りの数は返さない（安く取れない部品があり、知りたいのは失ったかどうか）。実装は `port/` に置く（ESP32 は `Esp32Twai`）~~ → API-34 | 10-15 ユーザ | API-4、A3 の見直し |
+| API-34 | ハードウェアの窓口は `Port`。必ず書くのは `bool send(const Frame&)`、`bool receive(Frame&)`（無ければ false。`update()` は false まで読む）、`uint32_t micros()`、`uint32_t rxOverflows()`（受信の溢れの数。すべて `= 0`。数えられない部品のポートは 0 を返すように書く。ESP32 は `twai_get_status_info()` の rx_missed と rx_overrun）。残りの数は返さない（安く取れない部品があり、知りたいのは失ったかどうか）。実装は `port/` に置く（ESP32 は `Esp32Twai`） | 10-15 ユーザ | API-33 |
 
-## 初期化
+## 初期化（確認済み 10-15）
 
 | 番号 | 決定 | 日付・誰 | 旧番号・出典 |
 |---|---|---|---|
@@ -24,6 +25,7 @@ API の正典はこの台帳。順番は台帳 → ヘッダ → 見本（`examp
 | API-6 | 確保に失敗したら何もしない取っ手を返す。`begin()` より前の失敗は `begin()` が false で知らせる | 10-14 ユーザ | A1 |
 | API-7 | 土台は `can.begin(Port&)`。ESP32（`ESP_PLATFORM`）では近道の `can.begin(tx, rx)` も使える。`Esp32Twai::begin(tx, rx)` も同じ順 | 10-14 ユーザ | A9 |
 | API-8 | `begin` は bool を返し、失敗の理由は `can.lastError()` で人が読む文字列として読む。失敗が無ければ `""` | 10-14 ユーザ | A9 |
+| API-35 | `Host` のコンストラクタは `constexpr` にし、メンバを 0 から始める（どのグローバルより先にできあがり、別のファイルに書いた取っ手の `can.md(ch)` でも安全）。実装の決まりで、API の形は変わらない | 10-15 ユーザ | — |
 
 ## 送受信のタイミング
 
