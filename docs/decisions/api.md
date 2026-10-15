@@ -24,8 +24,8 @@ API の正典はこの台帳。順番は台帳 → ヘッダ → 見本（`examp
 | API-5 | 取っ手は `can.md(ch)`、`can.controller(ch)` などで受け取る。初めて求めたときに中身を malloc で確保し、解放しない。同じ ch を何度求めても同じ中身。取っ手はコピーしてよい。`w.ch()` で番号を読む | 10-14 ユーザ | A1 |
 | API-6 | 確保に失敗したら何もしない取っ手を返す。`begin()` より前の失敗は `begin()` が false で知らせる | 10-14 ユーザ | A1 |
 | API-7 | 土台は `can.begin(Port&)`。ESP32（`ESP_PLATFORM`）では近道の `can.begin(tx, rx)` も使える。`Esp32Twai::begin(tx, rx)` も同じ順 | 10-14 ユーザ | A9 |
-| ~~API-8~~ | ~~`begin` は bool を返し、失敗の理由は `can.error()` で人が読む文字列として読む。失敗が無ければ `""`~~ → API-39 | 10-14 ユーザ | A9 |
-| ~~API-39~~ | ~~主制御全体の異常は 2 段: `can.error()` がタグ（`enum class Error : uint8_t`、`None` ＝ 0）を返し、`mcan::toString(Error)` が人の読む文字列（`None` は `""`）を返す。`begin` は bool のまま。`lastError()` は最後の 1 つを返す。履歴の扱いは後回し~~ → API-47 | 10-15 ユーザ | API-8 |
+| ~~API-8~~ | ~~`begin` は bool を返し、失敗の理由は `can.lastError()` で人が読む文字列として読む。失敗が無ければ `""`~~ → API-39 | 10-14 ユーザ | A9 |
+| ~~API-39~~ | ~~主制御全体の異常は 2 段: `can.lastError()` がタグ（`enum class Error : uint8_t`、`None` ＝ 0）を返し、`mcan::toString(Error)` が人の読む文字列（`None` は `""`）を返す。`begin` は bool のまま。`lastError()` は最後の 1 つを返す。履歴の扱いは後回し~~ → API-47 | 10-15 ユーザ | API-8 |
 | API-47 | 主制御全体の異常は 2 段: `can.error()` がタグ（`enum class Error : uint8_t`、`None` ＝ 0）を返し、`mcan::toString(Error)` が人の読む文字列（`None` は `""`）を返す。`begin` は bool のまま。名前は `lastError` をやめて `error`。いくつを、いつまで持つか（最後の 1 つか、履歴か、消し方）は未決（open.md） | 10-15 ユーザ | API-39 |
 | API-35 | `Host` のコンストラクタは `constexpr` にし、メンバを 0 から始める（どのグローバルより先にできあがり、別のファイルに書いた取っ手の `can.md(ch)` でも安全）。実装の決まりで、API の形は変わらない | 10-15 ユーザ | — |
 
