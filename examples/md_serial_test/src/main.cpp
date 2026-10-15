@@ -11,15 +11,15 @@
 namespace mcan = mas::can;
 
 mcan::Esp32Twai twai;
-mcan::Bus can;
+mcan::Host can;
 mcan::Md md = can.md(0);
 
-void onFault(mcan::Md &m, uint32_t bits) {
-    Serial.printf("! MD %d fault 0x%08lx\n", m.ch(), (unsigned long)bits);
+void onFault(mcan::Device &dev, uint32_t bits) {
+    Serial.printf("! MD %d fault 0x%08lx\n", dev.ch(), (unsigned long)bits);
 }
 
-void onSettingError(mcan::Md &m, uint8_t item, uint8_t result) {
-    Serial.printf("! MD %d setting %d failed (%d)\n", m.ch(), item, result);
+void onSettingError(mcan::Device &dev, uint8_t result) {
+    Serial.printf("! MD %d setting failed (%d)\n", dev.ch(), result);
 }
 
 void handleLine(String line) {
@@ -66,7 +66,7 @@ void handleLine(String line) {
 void setup() {
     Serial.begin(115200);
     delay(500);
-    Serial.println(twai.begin({GPIO_NUM_5, GPIO_NUM_4}) ? "TWAI ok" : "TWAI failed");
+    Serial.println(twai.begin(GPIO_NUM_5, GPIO_NUM_4) ? "TWAI ok" : "TWAI failed");
     can.begin(twai);
     can.onFault(onFault);
     can.onSettingError(onSettingError);
