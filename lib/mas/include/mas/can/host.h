@@ -101,7 +101,7 @@ class Host {
     void handleMdFeedback(const Frame& f, uint32_t now);
     void handleController(const Frame& f, uint32_t now);
     void handleSettingResponse(const Frame& f);
-    void onMdRestart(detail::DeviceState* s);
+    void onMdRestart(detail::DeviceState* s, bool board_reset);
     bool pickResolution(uint32_t now, detail::SettingReq& out);
     void finishActive();
     bool queueSetting(const detail::SettingReq& req);

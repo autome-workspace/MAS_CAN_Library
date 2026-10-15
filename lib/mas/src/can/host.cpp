@@ -61,8 +61,6 @@ mas_can_md_cmd_t toCmd(MdMode m) {
     }
 }
 
-bool ready(const MdState& m) { return !m.current_pending && !m.speed_pending; }
-
 } // namespace
 
 const char* toString(Error e) {
@@ -228,10 +226,12 @@ void Host::receiveAll(uint32_t now) {
             if (estop_seen_ && !estop_own_) resetCommands(); // API-48
             estop_seen_ = false; // 自分の E-stop は自分が解除するまで続く（API-23）
         } else if (mas_can_boot_decode(&f, &kind)) {
-            if (kind == MAS_CAN_KIND_MD) { // どの基板かは分からないので、FB を見た MD 全部（C-88）
+            if (kind == MAS_CAN_KIND_MD) { // どの基板かは分からない。送り直すだけで止めない（C-94）
                 for (DeviceState* s = head_; s; s = s->next) {
                     MdState* m = detail::asMd(s);
-                    if (m && m->fb_seen) onMdRestart(m);
+                    if (!m || !m->fb_seen) continue;
+                    m->current.resend = m->speed.resend = true;
+                    m->after_boot = true;
                 }
             }
         } else if (f.id >= 0x320 && f.id < 0x320 + MAS_CAN_MD_MAX_CH) {
@@ -254,6 +254,14 @@ void Host::handleMdFeedback(const Frame& f, uint32_t now) {
     if (!m) return; // 求めていない ch の FB は捨てる
     Md::Feedback& fb = m->fb;
 
+    if (m->after_boot) { // 起動の知らせの後の最初の FB で異常が立っていれば、再起動した基板（C-94）
+        m->after_boot = false;
+        if (raw.status & MAS_CAN_MD_ST_FAULT) {
+            onMdRestart(m, !(fb.status & MAS_CAN_MD_ST_FAULT)); // 前から異常なら刻みは分からない
+            m->restart_noted = true;
+            m->fault_known = false; // 異常の詳細を読み直す
+        }
+    }
     if (!m->fb_seen) {
         fb.position = mas_can_u24_diff(raw.position, 0);
         m->fb_seen = true; // ここから刻みを書きに行く（API-44。pickResolution）
@@ -265,9 +273,12 @@ void Host::handleMdFeedback(const Frame& f, uint32_t now) {
 
     bool current_ok = !(raw.status & MAS_CAN_MD_ST_CURRENT_INVALID);
     bool speed_ok = !(raw.status & MAS_CAN_MD_ST_SPEED_INVALID);
+    // 換算は基板で確かめた刻みで。確かめるまでは無効とする（API-65）
     fb.status = raw.status;
-    fb.current = current_ok ? raw.current * m->current_lsb_ma * 0.001f : 0.0f;
-    fb.speed = speed_ok ? raw.speed * m->speed_lsb_rpm * (kTwoPi / 60.0f) : 0.0f;
+    if (!m->current.known) fb.status |= MAS_CAN_MD_ST_CURRENT_INVALID;
+    if (!m->speed.known) fb.status |= MAS_CAN_MD_ST_SPEED_INVALID;
+    fb.current = fb.currentValid() ? raw.current * m->current.board * 0.001f : 0.0f;
+    fb.speed = fb.speedValid() ? raw.speed * m->speed.board * (kTwoPi / 60.0f) : 0.0f;
     fb.duty = (current_ok && speed_ok)
                   ? 0.0f
                   : mas_can_md_duty_value(raw.duty) / (float)MAS_CAN_MD_DUTY_FULL;
@@ -289,31 +300,40 @@ void Host::handleMdFeedback(const Frame& f, uint32_t now) {
     }
 }
 
-void Host::onMdRestart(DeviceState* s) {
+// 再起動した基板の ch。board_reset なら基板の刻みは既定値（M-56）、でなければ分からない
+void Host::onMdRestart(DeviceState* s, bool board_reset) {
     MdState* m = detail::asMd(s);
     if (!m) return;
     m->relink = true; // 基板の位置は 0 から始まり直すので、積み上げた位置を続ける
-    m->current_pending = m->speed_pending = true; // ほかの設定より先に送り直す（C-88）
+    detail::Lsb* lsbs[] = {&m->current, &m->speed};
+    for (detail::Lsb* l : lsbs) {
+        l->board = 1.0f;
+        l->known = board_reset;
+        l->resend = true; // ほかの設定より先に送り直す（C-88）
+    }
     m->lsb_hold = false;
 }
 
-// 書く必要のある刻みを 1 つ選ぶ。印（pending）が正本なので、列が溢れても取りこぼさない。
-// 失敗した ch は少し待ってから書き直す（基板が見えている間）
+// 書く必要のある刻みを 1 つ選ぶ。印が正本なので、列が溢れても取りこぼさない。
+// 止める値を送っている ch（ready でない）を先に。失敗した ch は少し待ってから書き直す
 bool Host::pickResolution(uint32_t now, SettingReq& out) {
-    for (DeviceState* s = head_; s; s = s->next) {
-        MdState* m = detail::asMd(s);
-        if (!m || !m->fb_seen || !m->fb.online || (!m->speed_pending && !m->current_pending))
-            continue;
-        if (m->lsb_hold && !elapsed(now, m->lsb_retry_us, kLsbRetryUs)) continue;
-        m->lsb_hold = false;
-        bool speed = m->speed_pending;
-        out = SettingReq();
-        out.dev = m;
-        out.op = MAS_CAN_OP_WRITE;
-        out.item = speed ? kItemSpeedLsb : kItemCurrentLsb;
-        out.tag = speed ? ReqTag::SpeedLsb : ReqTag::CurrentLsb;
-        mas_can_value_set_f32(out.value, speed ? m->speed_lsb_rpm : m->current_lsb_ma);
-        return true;
+    for (int pass = 0; pass < 2; pass++) {
+        for (DeviceState* s = head_; s; s = s->next) {
+            MdState* m = detail::asMd(s);
+            if (!m || !m->fb_seen || !m->fb.online) continue;
+            if (pass == 0 && m->ready()) continue;
+            if (!m->speed.needsWrite() && !m->current.needsWrite()) continue;
+            if (m->lsb_hold && !elapsed(now, m->lsb_retry_us, kLsbRetryUs)) continue;
+            m->lsb_hold = false;
+            bool speed = m->speed.needsWrite();
+            out = SettingReq();
+            out.dev = m;
+            out.op = MAS_CAN_OP_WRITE;
+            out.item = speed ? kItemSpeedLsb : kItemCurrentLsb;
+            out.tag = speed ? ReqTag::SpeedLsb : ReqTag::CurrentLsb;
+            mas_can_value_set_f32(out.value, speed ? m->speed.want : m->current.want);
+            return true;
+        }
     }
     return false;
 }
@@ -347,13 +367,13 @@ void Host::sendMd(bool only_dirty, uint32_t now) {
                 continue;
             }
             int16_t v = 0; // 止める値（電流、速度、duty はどれも 0）
-            if (!estopped() && ready(*m)) {
+            if (!estopped() && m->ready()) {
                 if (m->raw) {
                     v = m->raw_value;
                 } else if (m->mode == MdMode::Current) {
-                    v = mas_can_sat16(m->value * 1000.0f / m->current_lsb_ma);
+                    v = mas_can_sat16(m->value * 1000.0f / m->current.want);
                 } else if (m->mode == MdMode::Speed) {
-                    v = mas_can_sat16(m->value * (60.0f / kTwoPi) / m->speed_lsb_rpm);
+                    v = mas_can_sat16(m->value * (60.0f / kTwoPi) / m->speed.want);
                 } else {
                     v = mas_can_md_duty_pack(mas_can_sat16(m->value * MAS_CAN_MD_DUTY_FULL),
                                              m->brake);
@@ -457,21 +477,21 @@ void Host::handleSettingResponse(const Frame& f) {
     switch (req.tag) {
         case ReqTag::CurrentLsb:
         case ReqTag::SpeedLsb: {
-            bool cur = req.tag == ReqTag::CurrentLsb;
-            float& lsb = cur ? m->current_lsb_ma : m->speed_lsb_rpm;
-            bool& pending = cur ? m->current_pending : m->speed_pending;
-            if (s.result != MAS_CAN_RES_OK) { // 断られた。直るまで止める値のまま
+            detail::Lsb& l = req.tag == ReqTag::CurrentLsb ? m->current : m->speed;
+            if (s.result != MAS_CAN_RES_OK) { // 断られた。基板の値は変わっていない
                 m->lsb_hold = true;
                 m->lsb_retry_us = port_->micros();
                 if (setting_error_handler_) setting_error_handler_(dev, s.result);
                 break;
             }
             float sent = mas_can_value_f32(req.value);
-            if (lsb != sent) break; // 待っている間にアプリが値を変えた。次に書き直す
-            float got = mas_can_value_f32(s.value);
-            pending = false;
-            if (got != sent && got > 0) { // 基板が抑えた（M-43）。基板の値で換算し、知らせる
-                lsb = got;
+            float got = mas_can_value_f32(s.value); // 基板が使う値（C-85）
+            l.board = got > 0 ? got : sent;
+            l.known = true;
+            l.resend = false;
+            if (l.want != sent) break; // 待っている間にアプリが値を変えた。次に書き直す
+            if (l.board != sent) { // 基板が抑えた（M-43）。それに合わせ、知らせる
+                l.want = l.board;
                 if (setting_error_handler_) setting_error_handler_(dev, MAS_CAN_RES_OK);
             }
             break;
@@ -481,8 +501,10 @@ void Host::handleSettingResponse(const Frame& f) {
             if (s.result != MAS_CAN_RES_OK) break;
             uint32_t bits = mas_can_value_u32(s.value);
             m->fault_known = true;
+            bool noted = m->restart_noted;
+            m->restart_noted = false;
             if (bits & MAS_CAN_FAULT_RESTARTED) { // 再起動の bit はライブラリが消す（API-19）
-                onMdRestart(m);
+                if (!noted) onMdRestart(m, false); // 起動の知らせを取りこぼした。刻みは分からない
                 SettingReq c;
                 c.dev = m;
                 c.op = MAS_CAN_OP_WRITE;
@@ -513,6 +535,9 @@ void Host::serviceSettings(uint32_t now) {
             MdState* m = detail::asMd(failed.dev);
             if (m && failed.tag == ReqTag::ReadFault) m->fault_reading = false;
             if (m && (failed.tag == ReqTag::CurrentLsb || failed.tag == ReqTag::SpeedLsb)) {
+                detail::Lsb& l = failed.tag == ReqTag::CurrentLsb ? m->current : m->speed;
+                // 書けたか分からない
+                if (mas_can_value_f32(failed.value) != l.board) l.known = false;
                 m->lsb_hold = true; // 少し待って書き直す
                 m->lsb_retry_us = now;
                 if (setting_error_handler_) {
@@ -617,7 +642,7 @@ bool Host::waitReady(uint32_t timeout_ms) {
         bool all = true;
         for (DeviceState* s = head_; s; s = s->next) {
             if (MdState* m = detail::asMd(s)) {
-                all &= m->fb.online && ready(*m);
+                all &= m->fb.online && m->ready();
             } else if (s->kind == Kind::Controller) {
                 all &= static_cast<ControllerState*>(s)->online;
             } // FB の無い種類は数えない

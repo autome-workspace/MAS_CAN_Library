@@ -199,33 +199,80 @@ static void test_feedback_and_restart() {
     pushFb(port, 2, 0x40, 1500, 1000, 0xFFFFF0); // 位置は -16
     step(host, port, 1);
     CHECK(m.online() && m.position() == -16);
-    CHECK(std::fabs(m.current() - 1.5f) < 1e-4f);
-    CHECK(std::fabs(m.speed() - 1000 * 6.2831853f / 60) < 1e-3f);
+    // 刻みを確かめるまでは換算しない（API-65）
+    CHECK(!m.feedback().currentValid() && !m.feedback().speedValid() && m.current() == 0);
     answerAll(host, port);
-    pushFb(port, 2, 0x40, 0, 0, 0x000010); // 折り返しをまたいで +32
+    pushFb(port, 2, 0x40, 1500, 1000, 0x000010); // 折り返しをまたいで +32
     step(host, port, 1);
     CHECK(m.position() == 16);
+    CHECK(std::fabs(m.current() - 1.5f) < 1e-4f);
+    CHECK(std::fabs(m.speed() - 1000 * 6.2831853f / 60) < 1e-3f);
     CHECK(&m.feedback() == &m.feedback() && m.feedback().position == 16);
+
+    // 刻みを変えても、確かめるまでは基板の刻みで換算する
+    m.configSpeedResolution(0.01f);
+    pushFb(port, 2, 0x40, 1500, 1000, 0x000010);
+    port.tx.clear();
+    step(host, port, 1);
+    CHECK(std::fabs(m.speed() - 1000 * 6.2831853f / 60) < 1e-3f);
+    answerAll(host, port);
+    pushFb(port, 2, 0x40, 1500, 1000, 0x000010);
+    step(host, port, 1);
+    CHECK(m.ready() && std::fabs(m.speed() - 10.0f) < 1e-3f);
 
     step(host, port, 250); // FB が途絶える
     CHECK(!m.online());
+}
 
-    // 再起動: 起動の知らせ → 刻みを先に送り直し、確かめるまで止める値。位置は結び直す
-    CHECK(m.ready());
+// 起動の知らせでは止めない。最初の FB に異常が立っている ch だけを再起動とみなす（C-94）
+static void test_restart_one_board() {
+    FakePort port;
+    mcan::Host host;
+    host.begin(port);
+    mcan::Md a = host.md(0), b = host.md(4);
+    a.configSpeedResolution(0.01f);
+    b.configSpeedResolution(0.01f);
+    a.setSpeed(5.0f);
+    b.setSpeed(5.0f);
+    pushFb(port, 0, 0x40, 0, 0, 100);
+    pushFb(port, 4, 0x40, 0, 0, 100);
+    step(host, port, 1);
+    answerAll(host, port, 30);
+    CHECK(a.ready() && b.ready());
+
     mcan::Frame boot;
     mas_can_boot_encode(MAS_CAN_KIND_MD, &boot);
     port.rx.push_back(boot);
+    pushFb(port, 0, 0x40, 0, 0, 200);                     // 再起動していない
+    pushFb(port, 4, 0x40 | MAS_CAN_MD_ST_FAULT, 0, 0, 5); // 再起動した。位置は 0 から
     port.tx.clear();
     step(host, port, 1);
-    CHECK(!m.ready());
-    CHECK(port.count(0x400) == 0); // 基板が見えるまでは書きに行かない
-    pushFb(port, 2, 0x40, 0, 0, 0); // 基板は 0 から
-    step(host, port, 1);
-    CHECK(m.position() == 16);
+    CHECK(a.ready() && a.position() == 200);  // 止めず、位置の差分も捨てない
+    CHECK(!b.ready() && b.position() == 100); // 結び直す
+    CHECK(b.feedback().speedValid());         // 基板の刻みは既定値と分かっている
     const mcan::Frame* req = port.last(0x400);
-    CHECK(req && (req->data[2] == 48 || req->data[2] == 49));
-    answerAll(host, port);
-    CHECK(m.ready());
+    CHECK(req && req->data[0] == 4 && req->data[2] == 49); // 再起動した ch を先に書く
+    step(host, port, 10);
+    CHECK(port.last(0x218) && slot(*port.last(0x218), 0) != 0);
+    CHECK(port.last(0x219) && slot(*port.last(0x219), 4) == 0);
+
+    // 刻みを書き、異常の詳細の bit 0 を読んでも、もう一度は結び直さない
+    int sent = 0;
+    for (int i = 0; i < 40; i++) {
+        const mcan::Frame* r = port.last(0x400);
+        if (r && r->data[7] != port.answered_seq) {
+            port.answered_seq = r->data[7];
+            uint32_t restarted = MAS_CAN_FAULT_RESTARTED;
+            bool read_fault = (r->data[1] >> 6) == MAS_CAN_OP_READ && r->data[2] == 5;
+            respond(port, *r, MAS_CAN_RES_OK, read_fault ? &restarted : nullptr);
+            sent++;
+        }
+        pushFb(port, 4, 0x40 | MAS_CAN_MD_ST_FAULT, 0, 0, 5 + i);
+        step(host, port, 1);
+    }
+    CHECK(b.ready() && b.position() == 100 + 39);
+    CHECK(a.ready());
+    CHECK(sent >= 5); // 刻み 2 ＋ 詳細の読み ＋ bit 0 を消す ＋ a の送り直し
 }
 
 static uint32_t g_fault_bits = 0;
@@ -489,6 +536,7 @@ int main() {
     test_ready_and_commands();
     test_bundle_and_flush();
     test_feedback_and_restart();
+    test_restart_one_board();
     test_fault();
     test_estop_and_sync();
     test_controller();

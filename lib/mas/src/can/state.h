@@ -18,6 +18,16 @@ struct DeviceState {
 
 enum class MdMode : uint8_t { None, Current, Speed, Duty };
 
+// 刻み 1 つ（API-65）。アプリが望む値と、基板で確かめた値を分けて持つ
+struct Lsb {
+    float want = 1.0f;
+    float board = 1.0f;
+    bool known = false;  // board を確かめた
+    bool resend = false; // 同じ値でも書き直す（C-88）
+    bool ok() const { return known && board == want; }
+    bool needsWrite() const { return !ok() || resend; }
+};
+
 struct MdState : DeviceState {
     // 指令
     MdMode mode = MdMode::None;
@@ -28,17 +38,20 @@ struct MdState : DeviceState {
     bool dirty = false;    // flush() で送る
     bool conflict = false; // API-52
 
-    // プログラムの値（API-14、API-43、API-44）。基板に書けたと確かめるまで pending
-    float current_lsb_ma = 1.0f, speed_lsb_rpm = 1.0f;
-    bool current_pending = true, speed_pending = true;
+    // プログラムの値（API-14、API-43、API-44、API-65）
+    Lsb current; // mA/LSB
+    Lsb speed;   // rpm/LSB
     bool lsb_hold = false; // 失敗したので lsb_retry_us から少し待つ
     uint32_t lsb_retry_us = 0;
+    bool ready() const { return current.ok() && speed.ok(); }
 
     // FB
     Md::Feedback fb;
     bool fb_seen = false;
     uint32_t last_raw_pos = 0;
-    bool relink = false; // 基板の再起動の後、次の FB で位置を結び直す
+    bool relink = false;        // 基板の再起動の後、次の FB で位置を結び直す
+    bool after_boot = false;    // 起動の知らせの後、まだ FB を受けていない（C-94）
+    bool restart_noted = false; // 再起動を FB で拾った。異常の詳細の bit 0 で二重に処理しない
     bool fault_known = false, fault_reading = false;
     uint32_t fault_detail = 0;
 };

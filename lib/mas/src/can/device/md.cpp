@@ -52,27 +52,25 @@ void Md::stop() {
 void Md::configCurrentResolution(float amps_per_lsb) {
     MdState* m = MD;
     if (!m || !(amps_per_lsb > 0)) return;
-    m->current_lsb_ma = amps_per_lsb * 1000.0f;
-    m->current_pending = true; // Host が空いたときに書きに行く
+    m->current.want = amps_per_lsb * 1000.0f; // 基板と違えば Host が空いたときに書きに行く
     m->lsb_hold = false;
 }
 
 void Md::configSpeedResolution(float radps_per_lsb) {
     MdState* m = MD;
     if (!m || !(radps_per_lsb > 0)) return;
-    m->speed_lsb_rpm = radps_per_lsb * (60.0f / kTwoPi);
-    m->speed_pending = true;
+    m->speed.want = radps_per_lsb * (60.0f / kTwoPi);
     m->lsb_hold = false;
 }
 
 float Md::currentRange() const {
     MdState* m = MD;
-    return (m ? m->current_lsb_ma : 1.0f) * 0.001f * 32767.0f;
+    return (m ? m->current.want : 1.0f) * 0.001f * 32767.0f;
 }
 
 float Md::speedRange() const {
     MdState* m = MD;
-    return (m ? m->speed_lsb_rpm : 1.0f) * (kTwoPi / 60.0f) * 32767.0f;
+    return (m ? m->speed.want : 1.0f) * (kTwoPi / 60.0f) * 32767.0f;
 }
 
 const Md::Feedback& Md::feedback() const {
@@ -82,7 +80,7 @@ const Md::Feedback& Md::feedback() const {
 bool Md::online() const { return feedback().online; }
 bool Md::ready() const {
     MdState* m = MD;
-    return m && !m->current_pending && !m->speed_pending;
+    return m && m->ready();
 }
 bool Md::stopped() const { return feedback().stopped(); }
 bool Md::estopLatched() const { return feedback().estopLatched(); }
