@@ -18,6 +18,7 @@
 
 #include <stddef.h>
 
+#include "core/board.h"
 #include "core/md_frame.h"
 #include "core/setting.h"
 
@@ -31,9 +32,8 @@ extern "C" {
 /* ---- 基板の性質（ポートが起動時に渡す） ---- */
 typedef struct {
     uint64_t uid;              /* 固有 ID（D22） */
-    uint32_t board_type;       /* 上位 16 bit ＝ 種類、下位 16 bit ＝ 版（A5、D34） */
+    uint32_t board_type;       /* MAS_CAN_BOARD_TYPE(種類, 版)（C-63、core/board.h） */
     uint32_t fw_version;       /* 0x00MMmmpp */
-    uint32_t protocol_version; /* 0x00MMmmpp */
 
     uint8_t md_first_ch; /* 受け持つ MD の先頭の ch（DIP から） */
     uint8_t md_count;    /* 受け持つ MD の数（0〜MAS_CAN_NODE_MD_MAX） */

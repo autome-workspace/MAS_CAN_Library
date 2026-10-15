@@ -106,9 +106,8 @@ void setup() {
 
     mas_can_node_config_t cfg = {};
     cfg.uid = uniqueId();
-    cfg.board_type = 0x00000000u;       // 基板の種類（C-63。一覧に書き足して取る）
+    cfg.board_type = MAS_CAN_BOARD_TYPE(MAS_CAN_BOARD_RESERVED, 1); // 実際の基板は core/board.h に番号を足す
     cfg.fw_version = 0x00000100u;       // 0.1.0
-    cfg.protocol_version = 0x01000001u; // 1.0.0-alpha.1
     cfg.md_first_ch = MD_CH;
     cfg.md_count = 1;
     cfg.md_has_current = false; // 測れない量は false（FB の bit で知らせる）

@@ -213,7 +213,7 @@ static bool item_get(const mas_can_node_t* n, int local, uint8_t item, uint8_t v
             return true;
         case MAS_CAN_ITEM_PROTOCOL_VERSION:
             *acc = ACC_RO;
-            mas_can_value_set_u32(v, n->cfg.protocol_version);
+            mas_can_value_set_u32(v, MAS_CAN_PROTOCOL_VERSION);
             return true;
         case MAS_CAN_ITEM_CH_RANGE:
             *acc = ACC_RO;

@@ -246,9 +246,8 @@ void setup() {
 
     mas_can_node_config_t cfg = {};
     cfg.uid = uniqueId();
-    cfg.board_type = 0x00020001u;       // CAN-Servo（0x0002）、版 1（C-63）
+    cfg.board_type = MAS_CAN_BOARD_TYPE(MAS_CAN_BOARD_CAN_SERVO, 1);
     cfg.fw_version = 0x00000100u;       // 0.1.0
-    cfg.protocol_version = 0x01000001u; // 1.0.0-alpha.1（C-71〜74）
     cfg.md_first_ch = MD_FIRST_CH;
     cfg.md_count = 4;
     cfg.md_has_current = false;
