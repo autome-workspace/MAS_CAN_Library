@@ -134,6 +134,7 @@ static void bridge(uint32_t pos, uint32_t neg) {
  * TIM2 CH3（ピンには出さない）の PWM2 の立ち上がり ＝ TRGO で ADC を起動する。 */
 #define SO_SETTLE 160 /* オンの後 10 µs は SO がリンギングする（実測）。これより短いと測れない */
 #define SO_MARGIN 24  /* オフになる 1.5 µs 前に測る */
+#define SO_MIN_ON (SO_SETTLE + SO_MARGIN) /* 測る時刻が SO_SETTLE より後になる最短のオン */
 #define ADC_TO_MA_Q10 8253 /* 1 カウント ＝ 3300 / 4095 / 100 A ＝ 8.06 mA */
 #define KP_Q8 8            /* 電流の PI。誤差 1 mA あたりの duty [カウント] × 256 */
 #define CHOP_Q8 384        /* 打ち切りの上限 ＝ 目標 × 1.5（保険） */
@@ -151,7 +152,7 @@ static volatile drive_cmd_t cmd;
 static volatile int32_t meas_q4; /* 測った電流 [mA] × 16。出している向きを正 */
 static volatile int32_t applied; /* 出している duty（符号付きのカウント） */
 
-/* 電流の指令: 目標との差で PI を回し duty を決める。duty の下限は測れる長さ（SO_SETTLE）にして、
+/* 電流の指令: 目標との差で PI を回し duty を決める。duty の下限は測れる長さ（SO_MIN_ON）にして、
  * それより小さい電流は DRV8701 の打ち切り（目標の 1.5 倍）に任せる。
  * 目標 0 は下限なしで 0 に追従させ（空転の代わり）、測れなくなったら duty を少しずつ下げる */
 static int32_t current_loop(int32_t target_ma, bool valid, int32_t ma, bool reset) {
@@ -162,7 +163,7 @@ static int32_t current_loop(int32_t target_ma, bool valid, int32_t ma, bool rese
         reset = true;
     }
     int32_t mag = target_ma < 0 ? -target_ma : target_ma;
-    int32_t floor = mag ? SO_SETTLE : 0;
+    int32_t floor = mag ? SO_MIN_ON : 0;
     if (reset) integ = floor << 16;
     int32_t p = 0;
     if (valid) {
@@ -208,7 +209,7 @@ void ADC1_IRQHandler(void) {
     else
         bridge(0, mag);
     __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_2, cmd.vref);
-    valid = mag >= SO_SETTLE;
+    valid = mag >= SO_MIN_ON;
     if (valid)
         __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_3,
                               mag > PWM_PERIOD ? PWM_PERIOD / 2 : mag - SO_MARGIN);

@@ -5,6 +5,7 @@
 //   s        … 止める
 //   e / c    … E-stop / 解除
 //   x        … 異常の bit を消す
+//   l        … 記録の切り替え（10 ms ごとに 時刻 ms,電流 A,duty。グラフ用）
 #include <Arduino.h>
 #include <mas/can.h>
 
@@ -12,6 +13,7 @@ namespace mcan = mas::can;
 
 mcan::Host can;
 mcan::Md md = can.md(0);
+bool logging = false;
 
 void onFault(mcan::Device &dev, uint32_t bits) {
     Serial.printf("! MD %d fault 0x%08lx\n", dev.ch(), (unsigned long)bits);
@@ -57,8 +59,12 @@ void handleLine(String line) {
             md.clearFault();
             Serial.println("clear fault");
             break;
+        case 'l':
+            logging = !logging;
+            Serial.println(logging ? "ms,A,duty" : "log off");
+            break;
         default:
-            Serial.println("? ch N / d X / i X / s / e / c / x");
+            Serial.println("? ch N / d X / i X / s / e / c / x / l");
     }
 }
 
@@ -69,7 +75,7 @@ void setup() {
     Serial.println(can.begin(CAN_TX, CAN_RX) ? "CAN ok" : mcan::toString(can.error()));
     can.onFault(onFault);
     can.onSettingError(onSettingError);
-    Serial.println("ch N / d X / i X / s / e / c / x");
+    Serial.println("ch N / d X / i X / s / e / c / x / l");
 }
 
 void loop() {
@@ -87,7 +93,13 @@ void loop() {
     }
 
     static uint32_t last = 0;
-    if (millis() - last >= 200) {
+    if (logging) {
+        if (millis() - last >= 10) {
+            last = millis();
+            const auto &fb = md.feedback();
+            Serial.printf("%lu,%.3f,%.3f\n", (unsigned long)last, fb.current, fb.duty);
+        }
+    } else if (millis() - last >= 200) {
         last = millis();
         const auto &fb = md.feedback();
         Serial.printf("[%d] %s%s %6.3f A duty %+.2f%s%s%s%s fault 0x%lx\n", md.ch(),
