@@ -293,17 +293,18 @@ static void calibrate_zero(void) {
     current_zero_adc = n ? (uint16_t)(sum / n) : 0;
 }
 
-/* ---- LED: 基板の位置 k を k ＋ 1 回の点滅で示す ---- */
+/* ---- LED: 基板の位置 k を k 回の点滅で示す（k ＝ 0 は消えたまま） ---- */
 
 static void led_update(uint8_t k, uint32_t now_ms) {
     static uint32_t last;
     static uint8_t count;
     static bool on;
+    if (k == 0) return;
     if ((uint32_t)(now_ms - last) < (on ? 150u : (count == 0 ? 1000u : 150u))) return;
     last = now_ms;
     if (on) {
         on = false;
-        count = (uint8_t)((count + 1) % (k + 1));
+        count = (uint8_t)((count + 1) % k);
     } else {
         on = true;
     }
