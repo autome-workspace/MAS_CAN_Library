@@ -338,8 +338,8 @@ void app_init(void) {
     cfg.md_has_current = true;
     cfg.md_has_speed = false;
     cfg.md_has_coast = false;
-    cfg.md_current_limit_max_ma = 10000;
-    cfg.md_current_limit_default_ma = 2400;
+    cfg.md_current_limit_max_ma = 15000;
+    cfg.md_current_limit_default_ma = 15000; /* 試験の間だけ。項目 33 を書く口（A5）ができたら下げる */
     cfg.md_fb_rate_max_hz = 500;
     cfg.load = flash_load;
     cfg.save = flash_save;
