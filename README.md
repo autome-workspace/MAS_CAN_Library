@@ -9,8 +9,7 @@ v0（`MotorCAN`）とは互換が無い。v0 はタグ [`v0`](../../tree/v0)。
 | 場所 | 中身 |
 |---|---|
 | [`lib/mas/`](lib/mas/) | ライブラリ（主制御 ESP32 / RP2040、基板側のコア） |
-| [`firmware/CAN_MD/`](firmware/CAN_MD/) | MD 1 ch（STM32F042） |
-| [`firmware/CAN-Servo-v1/`](firmware/CAN-Servo-v1/) | サーボ 8 ch ＋ MD 4 ch（RP2040-Zero） |
+| [`firmware/`](firmware/) | 基板のファーム。基板ごとに 1 フォルダで、使い方と制約はその README |
 | [`examples/`](examples/) | 例。まずは `md_minimal`、`servo_minimal` |
 | [`docs/decisions/`](docs/decisions/) | 仕様の正本 |
 
@@ -65,45 +64,8 @@ void loop() {
 
 全体は [`docs/decisions/api.md`](docs/decisions/api.md)。
 
-## 基板
-
-### CAN_MD
-
-| | |
-|---|---|
-| ch | DIP で 0〜7。LED が ch の回数だけ点滅 |
-| 指令 | duty、電流（速度は不可） |
-| 電流の上限 | 15 A（既定も 15 A） |
-
-```sh
-cd firmware/CAN_MD
-cmake --preset Release && cmake --build --preset Release
-```
-
-新しい基板には 1 回 `STM32_Programmer_CLI -c port=SWD -ob BOOT_SEL=0` を書く。
-
-### CAN-Servo
-
-| | |
-|---|---|
-| サーボ | J2〜J9 |
-| MD（duty だけ） | J1、J10、J11、J12 |
-| ch の先頭 | `platformio.ini` の `SERVO_FIRST_CH`、`MD_FIRST_CH` |
-
-```sh
-cd firmware/CAN-Servo-v1
-pio run -t upload
-```
-
-## 既知の制約
-
-- CAN_MD は HSI で動いている（CAN にはクロックの精度が足りない）。
-- CAN_MD の電流の上限の既定が 15 A。
-- CAN_MD は小さな電流の指令で duty 0.345 より下がらない。
-
-ほかは [`open.md`](docs/decisions/open.md)、[`TODO.md`](firmware/CAN_MD/TODO.md)。
-
 ## 開発
 
 - テスト: `make -C lib/mas/test`
 - 版とブランチ: [`docs/versioning.md`](docs/versioning.md)
+- 未決: [`docs/decisions/open.md`](docs/decisions/open.md)
