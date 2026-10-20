@@ -1,3 +1,6 @@
 compile_commands.json
 # 個人のエディタ設定（firmware/CAN_MD/.vscode/ は STM32 の拡張の設定として追跡している）
 .vscode/
+
+# シリアルモニタの記録
+examples/*/logs/
