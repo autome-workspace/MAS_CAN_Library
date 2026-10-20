@@ -13,6 +13,6 @@
 #define MAS_CAN_BOARD_TYPE(kind, rev) (((uint32_t)(kind) << 16) | (uint16_t)(rev))
 
 /* プロトコルの版（項目 3。C-71〜74）。ライブラリと一緒に上げる。基板は node が自動で返す */
-#define MAS_CAN_PROTOCOL_VERSION 0x01000041u /* 1.0.0-beta.1 */
+#define MAS_CAN_PROTOCOL_VERSION 0x010000C1u /* 1.0.0 */
 
 #endif /* MAS_CAN_CORE_BOARD_H */

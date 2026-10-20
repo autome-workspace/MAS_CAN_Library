@@ -1,6 +1,6 @@
 {
   "name": "mas",
-  "version": "1.0.0-beta.1",
+  "version": "1.0.0",
   "description": "MAS libraries (CAN: protocol v1, work in progress)",
   "keywords": ["can", "robot"],
   "frameworks": ["arduino"],
