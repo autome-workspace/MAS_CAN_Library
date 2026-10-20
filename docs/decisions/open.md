@@ -33,7 +33,7 @@
 - CAN 越しの I2C、SPI（ブリッジの種類）の案（2026-10-16、ユーザ）。自前のファームなしでセンサを使える。1 回のやりとりごとに往復が入るので、速いものや時間に厳しいものには向かない。手元の I2C-CAN モジュールが候補。
 - 位置の指令（M-49）を作るときの参考: ODrive（XDrive）の位置まわり。入力のモード（POS_FILTER、TRAP_TRAJ）、軌道の速度・加速度の上限、速度とトルクのフィードフォワード、速度の上限（`~/dev/Eugene_Ramirez/archive/F3RC_2026/docs/xdrive_protocol.md`、2026-10-16、ユーザ）。
 - k の決め方の代案を探したい（DIP の他に）。基板ごとに決めてよい（C-75）。
-- 部の mas libraries（作成予定、organization の private）に移すときの置き方。`lib_deps` の git の URL はリポジトリ直下のライブラリしか取り込めないので、ライブラリごとにリポジトリ（`lib/mas/` がそのまま直下になる）か、1 つにまとめてサブモジュールと `lib_extra_dirs` か。部員は SSH 鍵か HTTPS のログインが要り、`#v1.0.0` で版を固定する。トークンを URL に書かない（2026-10-15）。
+- 部の mas libraries（作成予定、organization の private）に移すときの置き方。~~`lib_deps` の git の URL はリポジトリ直下のライブラリしか取り込めないので、~~（2026-10-20: 直下に無ければ最初に見つけた `library.json` を拾う。`legacy/` を消したので今は `lib/mas` が入る。C-95）ライブラリごとにリポジトリ（`lib/mas/` がそのまま直下になる）か、1 つにまとめてサブモジュールと `lib_extra_dirs` か。部員は SSH 鍵か HTTPS のログインが要り、`#v1.0.0` で版を固定する。トークンを URL に書かない（2026-10-15）。
 - 起動直後に動かない形は、CANopen、ODrive、Dynamixel が採り、DJI、VESC は採らない（Q38 の材料）。
 
 ## 他の種類と API

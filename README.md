@@ -6,7 +6,7 @@ MAS のロボット向け CAN 通信の仕様（プロトコル v1）、主制�
 > 配線、書き込み、抜き差しの前に、駆動電源を切るか E-stop を掛ける。基板は電源を入れると稼働する（許可の手順は無い）。起動から 200 ms は指令に従わないが、その後は届いた指令でそのまま動く。
 
 > [!NOTE]
-> 版は `1.0.0`（2026-10-20）。旧版 v0（`MotorCAN`）とは互換が無い。v0 は [`legacy/v0/`](legacy/v0/) とタグ `v0` にある。
+> 版は `1.0.0`（2026-10-20）。旧版 v0（`MotorCAN`）とは互換が無い。v0 はタグ [`v0`](../../tree/v0) にある。
 
 ## 収録内容
 
@@ -31,23 +31,25 @@ MAS のロボット向け CAN 通信の仕様（プロトコル v1）、主制�
 
 ### 入れ方
 
-`lib/mas/` を自分の PlatformIO プロジェクトの `lib/mas/` に写す。このリポジトリを隣に置いて `lib_extra_dirs` で指してもよい。
+`platformio.ini` の `lib_deps` にこのリポジトリを書く。`#v1.0.0` で版を固定する（書かないと `main` の最新が入る）。リポジトリは private なので、GitHub に SSH の鍵を登録しておく。
 
 ```ini
 [env:esp32]
 platform = espressif32
 board = esp32dev
 framework = arduino
-lib_deps = mas
+lib_deps = git@github.com:autome-workspace/MAS_CAN_Library.git#v1.0.0
 ```
 
 RP2040（Arduino-Pico）では CAN に can2040 を使うので、ACAN2040 を足す（GPL-3.0 なので同梱していない）。
 
 ```ini
 lib_deps =
-    mas
+    git@github.com:autome-workspace/MAS_CAN_Library.git#v1.0.0
     https://github.com/obdevel/ACAN2040.git#1.0.6
 ```
+
+ライブラリ自体を書き換えながら使うときは、clone したリポジトリを `symlink://` で指す（例: `lib_deps = symlink://../MAS_CAN_Library/lib/mas`）。
 
 ### 最小例
 
