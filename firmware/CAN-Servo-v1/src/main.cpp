@@ -6,8 +6,8 @@
 #include <ACAN2040.h>
 #include <Arduino.h>
 #include <EEPROM.h>
-#include <Servo.h>
 #include <hardware/clocks.h>
+#include <hardware/dma.h>
 #include <hardware/gpio.h>
 #include <hardware/pio.h>
 #include <hardware/pio_instructions.h>
@@ -26,11 +26,18 @@
 static_assert(SERVO_FIRST_CH % 8 == 0 && SERVO_FIRST_CH < 64, "SERVO_FIRST_CH: 0, 8, ..., 56");
 static_assert(MD_FIRST_CH % 4 == 0 && MD_FIRST_CH < 32, "MD_FIRST_CH: 0, 4, ..., 28");
 
+// デバッグ用のシリアル（USB）。env:pico_debug で有効になる。
+#ifdef DEBUG_SERIAL
+#define DBG(...) Serial.printf(__VA_ARGS__)
+#else
+#define DBG(...) ((void)0)
+#endif
+
 namespace {
 
 constexpr uint8_t kCanTxPin = 0;
 constexpr uint8_t kCanRxPin = 1;
-constexpr uint8_t kCanPio = 1;  // PIO0 は Servo ライブラリに残す
+constexpr uint8_t kCanPio = 1;  // PIO0 はサーボと LED に使う
 constexpr uint8_t kLedPin = 16;
 
 constexpr uint8_t kServoPins[8] = {29, 28, 27, 26, 15, 14, 13, 12};
@@ -42,8 +49,7 @@ constexpr uint32_t kGraceUs = 200000; // 起動の猶予（C-89）
 constexpr uint8_t kServoStop = 255;
 
 mas_can_node_t node;
-Servo servos[8];
-bool servoAttached[8];
+bool servoActive[8];
 uint8_t servoValue[8] = {kServoStop, kServoStop, kServoStop, kServoStop,
                          kServoStop, kServoStop, kServoStop, kServoStop};
 uint32_t servoLastUs[8];
@@ -98,23 +104,34 @@ bool canSend(const mas_can_frame_t *f) {
 }
 
 void reserveCanPio() {
-    // can2040 は PIO1 の 4 つの SM を claim せずに使う。Servo ライブラリが PIO1 を空きと
+    // can2040 は PIO1 の 4 つの SM を claim せずに使う。ほかのライブラリが PIO1 を空きと
     // 見て奪わないように、先に claim しておく。
     for (uint sm = 0; sm < 4; ++sm) {
         if (!pio_sm_is_claimed(pio1, sm)) pio_sm_claim(pio1, sm);
     }
 }
 
-void setLed(uint8_t r, uint8_t g, uint8_t b) {
-    const uint16_t prog[] = {
+// PIO の SM のうち claim 済みのものの bit
+uint8_t smMask(PIO pio) {
+    uint8_t m = 0;
+    for (uint sm = 0; sm < 4; ++sm) m |= pio_sm_is_claimed(pio, sm) << sm;
+    return m;
+}
+
+// ---- LED（WS2812）。PIO0 の SM を 1 つ起動時に取り、取りっぱなしにする ----
+
+uint ledSm;
+
+void ledInit() {
+    static const uint16_t prog[] = {
         (uint16_t)(pio_encode_out(pio_x, 1) | pio_encode_sideset(1, 0) | pio_encode_delay(2)),
         (uint16_t)(pio_encode_jmp_not_x(3) | pio_encode_sideset(1, 1) | pio_encode_delay(1)),
         (uint16_t)(pio_encode_jmp(0) | pio_encode_sideset(1, 1) | pio_encode_delay(4)),
         (uint16_t)(pio_encode_nop() | pio_encode_sideset(1, 0) | pio_encode_delay(4)),
     };
-    const pio_program_t program = {prog, 4, -1, 0};
+    static const pio_program_t program = {prog, 4, -1, 0};
     PIO pio = pio0;
-    uint sm = pio_claim_unused_sm(pio, true);
+    ledSm = pio_claim_unused_sm(pio, true);
     uint offset = pio_add_program(pio, &program);
     pio_sm_config c = pio_get_default_sm_config();
     sm_config_set_wrap(&c, offset, offset + 3);
@@ -124,16 +141,14 @@ void setLed(uint8_t r, uint8_t g, uint8_t b) {
     sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_TX);
     sm_config_set_clkdiv(&c, (float)clock_get_hz(clk_sys) / 8000000.0f);
     pio_gpio_init(pio, kLedPin);
-    pio_sm_set_consecutive_pindirs(pio, sm, kLedPin, 1, true);
-    pio_sm_init(pio, sm, offset, &c);
-    pio_sm_set_enabled(pio, sm, true);
+    pio_sm_set_consecutive_pindirs(pio, ledSm, kLedPin, 1, true);
+    pio_sm_init(pio, ledSm, offset, &c);
+    pio_sm_set_enabled(pio, ledSm, true);
+}
+
+void setLed(uint8_t r, uint8_t g, uint8_t b) {
     uint32_t grb = ((uint32_t)g << 16) | ((uint32_t)r << 8) | b;
-    pio_sm_put_blocking(pio, sm, grb << 8);
-    while (!pio_sm_is_tx_fifo_empty(pio, sm)) tight_loop_contents();
-    delayMicroseconds(100);
-    pio_sm_set_enabled(pio, sm, false);
-    pio_sm_unclaim(pio, sm);
-    pio_remove_program(pio, &program, offset);
+    pio_sm_put_blocking(pio0, ledSm, grb << 8);
 }
 
 // ---- 設定の保存（node の load/save）。RP2040 のフラッシュの末尾を EEPROM として使う ----
@@ -173,28 +188,77 @@ void servoReceive(const mas_can_frame_t &f, uint32_t now) {
     }
 }
 
-void servoStop(uint8_t i) {
-    if (servoAttached[i]) {
-        servos[i].detach();
-        servoAttached[i] = false;
-    }
-    pinMode(kServoPins[i], OUTPUT);
-    digitalWrite(kServoPins[i], LOW);
+// 1 つの SM で 8 本を順に出す（1 本 2.5 ms の枠 × 8 ＝ 20 ms）。PWM ではピンが足りない
+// （12 と 28、13 と 29 が同じチャネル、26 と 27 は MD と同じスライス）。
+// 枠ごとの 1 語: 下位 18 bit ＝ GPIO12〜29 の High にするピン、上位 14 bit ＝ y。
+// High の長さは (kServoSlotUs − y) µs。DMA が 8 語を回し続ける。
+constexpr uint8_t kServoPinBase = 12;
+constexpr uint32_t kServoSlotUs = 2500;
+alignas(32) uint32_t servoWords[8];
+uint servoSm;
+int servoDma;
+
+void servoPioInit() {
+    static const uint16_t prog[] = {
+        (uint16_t)pio_encode_pull(false, true),        // 0: 1 語待つ
+        (uint16_t)pio_encode_mov(pio_x, pio_isr),      // 1: x ＝ 枠の長さ
+        (uint16_t)pio_encode_out(pio_pins, 18),        // 2: ピンを High
+        (uint16_t)pio_encode_out(pio_y, 14),           // 3: y
+        (uint16_t)pio_encode_jmp_x_ne_y(6),            // 4:
+        (uint16_t)pio_encode_mov(pio_pins, pio_null),  // 5: x ＝ y で Low
+        (uint16_t)pio_encode_jmp_x_dec(4),             // 6: 1 周 2 サイクル ＝ 1 µs
+    };
+    static const pio_program_t program = {prog, 7, -1, 0};
+    PIO pio = pio0;
+    servoSm = pio_claim_unused_sm(pio, true);
+    uint offset = pio_add_program(pio, &program);
+    pio_sm_config c = pio_get_default_sm_config();
+    sm_config_set_wrap(&c, offset, offset + 6);
+    sm_config_set_out_pins(&c, kServoPinBase, 18);
+    sm_config_set_out_shift(&c, true, false, 32);
+    sm_config_set_clkdiv(&c, (float)clock_get_hz(clk_sys) / 2000000.0f);
+    uint32_t mask = 0;
+    for (uint8_t pin : kServoPins) mask |= 1u << pin;
+    pio_sm_set_pins_with_mask(pio, servoSm, 0, mask);
+    pio_sm_set_pindirs_with_mask(pio, servoSm, mask, mask);
+    pio_sm_init(pio, servoSm, offset, &c);
+    pio_sm_put(pio, servoSm, kServoSlotUs);  // ISR に枠の長さを置いておく
+    pio_sm_exec(pio, servoSm, pio_encode_pull(false, true));
+    pio_sm_exec(pio, servoSm, pio_encode_mov(pio_isr, pio_osr));
+    pio_sm_set_enabled(pio, servoSm, true);
+
+    servoDma = dma_claim_unused_channel(true);
+    dma_channel_config d = dma_channel_get_default_config(servoDma);
+    channel_config_set_transfer_data_size(&d, DMA_SIZE_32);
+    channel_config_set_read_increment(&d, true);
+    channel_config_set_write_increment(&d, false);
+    channel_config_set_ring(&d, false, 5);  // 32 バイト（8 語）で読み位置を戻す
+    channel_config_set_dreq(&d, pio_get_dreq(pio, servoSm, true));
+    dma_channel_configure(servoDma, &d, &pio->txf[servoSm], servoWords, 0xFFFFFFFFu, true);
+}
+
+// ピンを PIO に戻す。E-stop の割り込みが SIO の Low にした後に使う。
+void servoPinsToPio() {
+    for (uint32_t &w : servoWords) w = 0;
+    pio_sm_clear_fifos(pio0, servoSm);  // 古い語を捨てる
+    pio_sm_exec(pio0, servoSm, pio_encode_mov(pio_pins, pio_null));  // 出している途中の枠も Low に
+    for (uint8_t pin : kServoPins) gpio_set_function(pin, GPIO_FUNC_PIO0);
 }
 
 void servoUpdate(uint32_t now, bool estopEdge) {
+    if (!node.estop && gpio_get_function(kServoPins[0]) != GPIO_FUNC_PIO0) servoPinsToPio();
     for (uint8_t i = 0; i < 8; i++) {
         bool timedOut = !servoSeen[i] || (uint32_t)(now - servoLastUs[i]) >= kTimeoutUs;
-        if (estopEdge || node.estop || timedOut || servoValue[i] == kServoStop) {
-            if (estopEdge || node.estop) servoSeen[i] = false;
-            servoStop(i);
-            continue;
-        }
-        if (!servoAttached[i]) {
-            servoAttached[i] = servos[i].attach(kServoPins[i], 500, 2500) >= 0;
-            if (!servoAttached[i]) continue;
-        }
-        servos[i].writeMicroseconds(500 + servoValue[i] * 10);
+        if (estopEdge || node.estop) servoSeen[i] = false;
+        servoActive[i] = !(node.estop || timedOut || servoValue[i] == kServoStop);
+        uint32_t widthUs = 500 + servoValue[i] * 10;
+        servoWords[i] = servoActive[i] ? (1u << (kServoPins[i] - kServoPinBase)) |
+                                             ((kServoSlotUs + 1 - widthUs) << 18)
+                                       : 0;
+    }
+    // 転送の回数を使い切ったら（約 124 日）掛け直す
+    if (!dma_channel_is_busy(servoDma)) {
+        dma_channel_transfer_from_buffer_now(servoDma, servoWords, 0xFFFFFFFFu);
     }
 }
 
@@ -242,7 +306,10 @@ void motorUpdate(uint8_t i) {
 
 void setup() {
     forceOutputsLow();
-    for (uint8_t i = 0; i < 8; i++) servoStop(i);
+#ifdef DEBUG_SERIAL
+    Serial.begin(115200);
+    while (!Serial && millis() < 3000) delay(10);  // 起動の表示を取りこぼさないよう、つなぐまで少し待つ
+#endif
 
     mas_can_node_config_t cfg = {};
     cfg.uid = uniqueId();
@@ -264,6 +331,10 @@ void setup() {
     can.begin();
     reserveCanPio();
     motorPwmInit();
+    servoPioInit();
+    ledInit();
+    DBG("boot servo_first=%d md_first=%d clk=%lu pio0=%x pio1=%x\n", SERVO_FIRST_CH, MD_FIRST_CH,
+        (unsigned long)clock_get_hz(clk_sys), smMask(pio0), smMask(pio1));
     setLed(0, 12, 0);
     mas_can_node_ready(&node, micros());
     servoBootPending = true; // サーボの起動の知らせ（C-36）。MD の分は node が送る
@@ -297,9 +368,26 @@ void loop() {
     }
 
     bool active = false;
-    for (uint8_t i = 0; i < 8; i++) active |= servoAttached[i];
+    for (uint8_t i = 0; i < 8; i++) active |= servoActive[i];
     for (uint8_t i = 0; i < 4; i++) active |= appliedDuty[i] != 0;
     uint8_t next = node.estop ? 2 : (active ? 1 : 0);
+
+#ifdef DEBUG_SERIAL
+    static uint32_t lastPrintUs;
+    if ((uint32_t)(now - lastPrintUs) >= 1000000) {
+        lastPrintUs = now;
+        can2040_stats st;
+        can.get_statistics(&st);
+        uint8_t att = 0;
+        for (uint8_t i = 0; i < 8; i++) att |= servoActive[i] << i;
+        Serial.printf("t=%lu estop=%d ready=%d led=%u servo=%02x duty=%.2f,%.2f,%.2f,%.2f "
+                      "rx=%lu tx=%lu/%lu perr=%lu pio0=%x\n",
+                      (unsigned long)(now / 1000), node.estop, node.ready, led, att, appliedDuty[0],
+                      appliedDuty[1], appliedDuty[2], appliedDuty[3], (unsigned long)st.rx_total,
+                      (unsigned long)st.tx_total, (unsigned long)st.tx_attempt,
+                      (unsigned long)st.parse_error, smMask(pio0));
+    }
+#endif
     if (next != led) {
         led = next;
         if (led == 0) setLed(0, 12, 0);
