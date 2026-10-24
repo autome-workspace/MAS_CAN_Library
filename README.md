@@ -18,14 +18,14 @@ v0（`MotorCAN`）とは互換が無い。v0 はタグ [`v0`](../../tree/v0)。
 `platformio.ini`:
 
 ```ini
-lib_deps = git@github.com:autome-workspace/MAS_CAN_Library.git#v1.0.0
+lib_deps = https://github.com/autome-workspace/MAS_CAN_Library.git#v1.0.0
 ```
 
 RP2040 は ACAN2040 も足す。
 
 ```ini
 lib_deps =
-    git@github.com:autome-workspace/MAS_CAN_Library.git#v1.0.0
+    https://github.com/autome-workspace/MAS_CAN_Library.git#v1.0.0
     https://github.com/obdevel/ACAN2040.git#1.0.6
 ```
 
