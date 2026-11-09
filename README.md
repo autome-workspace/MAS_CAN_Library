@@ -15,15 +15,24 @@ v0（`MotorCAN`）とは互換が無い。v0 はタグ [`v0`](../../tree/v0)。
 
 ## 使い方
 
-`platformio.ini`:
+`platformio.ini`（ESP32）:
 
 ```ini
+[env:esp32]
+platform = espressif32      ; PlatformIO 公式（arduino-esp32 2.x 系）
+board = esp32dev            ; ESP32-S3 は esp32-s3-devkitc-1
+framework = arduino
 lib_deps = https://github.com/autome-workspace/MAS_CAN_Library.git#v1.0.0
 ```
 
-RP2040 は ACAN2040 も足す。
+RP2040 は earlephilhower のコアを使い、ACAN2040 も足す。
 
 ```ini
+[env:pico]
+platform = https://github.com/maxgerhardt/platform-raspberrypi.git#9c167c6b8aac4f4cfa6d55a0c4e5b848795150c0
+board = pico
+board_build.core = earlephilhower
+framework = arduino
 lib_deps =
     https://github.com/autome-workspace/MAS_CAN_Library.git#v1.0.0
     https://github.com/obdevel/ACAN2040.git#1.0.6
@@ -52,6 +61,26 @@ void loop() {
 - `can.update()` を `loop()` で毎回呼ぶ（100 Hz 以上）。
 - `set…` は値を置くだけ。送るのは `update()`。
 - 単位は SI（rad/s、A、rad）。duty は −1〜+1。
+
+`can.begin(tx, rx)` は近道。CAN の口を自分で作って渡すこともできる。
+
+```cpp
+mcan::Esp32Twai bus;  // ESP32（TWAI）
+
+void setup() {
+    bus.begin(GPIO_NUM_5, GPIO_NUM_4);  // TX, RX
+    can.begin(bus);
+}
+```
+
+```cpp
+mcan::Rp2040Can2040 bus;  // RP2040（can2040。PIO 0 と 1 で 2 本まで）
+
+void setup() {
+    bus.begin(5, 4, 1);  // TX, RX, PIO
+    can.begin(bus);
+}
+```
 
 | API | 内容 |
 |---|---|
