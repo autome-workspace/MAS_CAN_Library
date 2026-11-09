@@ -5,8 +5,6 @@
 
 #include "mas/can/node.h"
 
-/* 基板の種類（C-63）。台帳の一覧に無い仮の番号。登録したら core/board.h に移す */
-#define BOARD_KIND_MICRO_MD 0x0003u
 #define FW_VERSION 0x00000100u /* 0.1.0 */
 
 #ifndef MICRO_MD_CH
@@ -574,7 +572,7 @@ int main(void) {
     mas_can_node_config_t cfg;
     memset(&cfg, 0, sizeof(cfg));
     cfg.uid = unique_id();
-    cfg.board_type = MAS_CAN_BOARD_TYPE(BOARD_KIND_MICRO_MD, 1);
+    cfg.board_type = MAS_CAN_BOARD_TYPE(MAS_CAN_BOARD_MICRO_MD, 1);
     cfg.fw_version = FW_VERSION;
     cfg.md_first_ch = load_k();
     cfg.md_count = 1;
