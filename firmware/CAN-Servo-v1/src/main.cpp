@@ -12,6 +12,7 @@
 #include <hardware/pio.h>
 #include <hardware/pio_instructions.h>
 #include <hardware/pwm.h>
+#include <hardware/sync.h>
 #include <pico/unique_id.h>
 
 #include "mas/can/core/setting.h"
@@ -45,7 +46,6 @@ constexpr uint8_t kMotorPins[4][2] = {{10, 11}, {8, 9}, {6, 7}, {4, 5}};
 constexpr uint16_t kPwmTop = (uint16_t)(F_CPU / 20000UL - 1);  // 約 20 kHz
 
 constexpr uint32_t kTimeoutUs = 100000;
-constexpr uint32_t kGraceUs = 200000; // 起動の猶予（C-89）
 constexpr uint8_t kServoStop = 255;
 
 mas_can_node_t node;
@@ -56,6 +56,7 @@ uint32_t servoLastUs[8];
 bool servoSeen[8];
 float appliedDuty[4];
 bool servoBootPending;
+volatile uint8_t txInFlight; // can2040 に渡して、まだ線に出し終えていない本数
 
 // 受信は割り込みで積み、loop() で取り出す。
 constexpr uint8_t kRxq = 32;
@@ -78,6 +79,7 @@ void forceOutputsLow() {
 }
 
 void canCallback(struct can2040 *, uint32_t notify, struct can2040_msg *msg) {
+    if (notify == CAN2040_NOTIFY_TX && txInFlight) txInFlight--;
     if (notify != CAN2040_NOTIFY_RX || !msg || (msg->id & CAN2040_ID_EFF)) return;
     uint16_t id = msg->id & 0x7FF;
     // E-stop は割り込みの中ですぐ出力を切る（loop() を待たない）
@@ -100,7 +102,11 @@ bool canSend(const mas_can_frame_t *f) {
     if (f->rtr) m.id |= CAN2040_ID_RTR;
     m.dlc = f->dlc;
     for (int i = 0; i < 8; i++) m.data[i] = f->data[i];
-    return can.send_message(&m);
+    uint32_t irq = save_and_disable_interrupts(); // 送り終えの割り込みと数を食い違わせない
+    bool ok = can.send_message(&m);
+    if (ok) txInFlight++;
+    restore_interrupts(irq);
+    return ok;
 }
 
 void reserveCanPio() {
@@ -159,12 +165,21 @@ bool settingsLoad(void *, void *buf, size_t len) {
     return true;
 }
 
+// 消している間は割り込みも loop() も止まり、途絶も E-stop も見られない。先に出力を切る。
+// ピンは次の loop() で servoUpdate と motorUpdate が戻す。
 bool settingsSave(void *, const void *buf, size_t len) {
+    forceOutputsLow();
     memcpy(EEPROM.getDataPtr(), buf, len);
     return EEPROM.commit();
 }
 
-void restart(void *) { rp2040.reboot(); }
+// 応答を線に出し終えるのを少し待ってから再起動する（C-66）
+void restart(void *) {
+    uint32_t t0 = micros();
+    while (txInFlight && (uint32_t)(micros() - t0) < 10000u) {
+    }
+    rp2040.reboot();
+}
 
 uint64_t uniqueId() {
     pico_unique_board_id_t id;
@@ -178,7 +193,7 @@ uint64_t uniqueId() {
 
 void servoReceive(const mas_can_frame_t &f, uint32_t now) {
     if (f.rtr || f.id != mas_can_servo_cmd_id(SERVO_FIRST_CH) || node.estop) return;
-    if (!node.ready || (uint32_t)(now - node.ready_us) < kGraceUs) return; // C-89
+    if (mas_can_node_in_grace(&node, now)) return; // C-89
     for (uint8_t i = 0; i < 8; i++) {
         if (i >= f.dlc) break;  // DLC の外の slot は受けていない扱い（D9）
         uint8_t v = f.data[i];
@@ -249,7 +264,7 @@ void servoUpdate(uint32_t now, bool estopEdge) {
     if (!node.estop && gpio_get_function(kServoPins[0]) != GPIO_FUNC_PIO0) servoPinsToPio();
     for (uint8_t i = 0; i < 8; i++) {
         bool timedOut = !servoSeen[i] || (uint32_t)(now - servoLastUs[i]) >= kTimeoutUs;
-        if (estopEdge || node.estop) servoSeen[i] = false;
+        if (estopEdge || node.estop || timedOut) servoSeen[i] = false; // µs の一周で戻らないよう
         servoActive[i] = !(node.estop || timedOut || servoValue[i] == kServoStop);
         uint32_t widthUs = 500 + servoValue[i] * 10;
         servoWords[i] = servoActive[i] ? (1u << (kServoPins[i] - kServoPinBase)) |
@@ -282,11 +297,9 @@ void motorPwmInit() {
 // （E-stop のブレーキ M-51 も。出せない基板は空転に丸める）。
 void motorUpdate(uint8_t i) {
     mas_can_md_output_t out = mas_can_md_output(&node, i);
-    float duty = out.mode == MAS_CAN_MD_OUT_DUTY ? out.value : 0.0f;
+    float duty = out.mode == MAS_CAN_MD_OUT_DUTY ? out.value : 0.0f; // 反転（32）は node がかけ済み
     if (duty > 1.0f) duty = 1.0f;
     if (duty < -1.0f) duty = -1.0f;
-    const mas_can_md_settings_t *set = mas_can_md_settings(&node, i);
-    if (set && set->reverse) duty = -duty;
     uint16_t level = (uint16_t)((duty < 0 ? -duty : duty) * kPwmTop);
     uint8_t a = kMotorPins[i][0], b = kMotorPins[i][1];
     gpio_set_function(a, GPIO_FUNC_PWM);
@@ -295,7 +308,7 @@ void motorUpdate(uint8_t i) {
     pwm_set_gpio_level(b, 0);
     if (duty > 0) pwm_set_gpio_level(a, level);
     if (duty < 0) pwm_set_gpio_level(b, level);
-    appliedDuty[i] = set && set->reverse ? -duty : duty;
+    appliedDuty[i] = duty;
 
     mas_can_md_measure_t m = {};
     m.duty = appliedDuty[i];

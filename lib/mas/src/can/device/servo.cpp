@@ -27,6 +27,7 @@ void Servo::setAngle(float rad) {
     ServoState* v = servo(s_);
     if (!v || v->rad1 == v->rad0) return;
     float us = v->us0 + (rad - v->rad0) * ((float)v->us1 - v->us0) / (v->rad1 - v->rad0);
+    if (us != us) return; // NaN は無視して前の指令を保つ（API-67）
     if (us < 0) us = 0;
     if (us > 65535.0f) us = 65535.0f;
     setPulseUs((uint16_t)(us + 0.5f));

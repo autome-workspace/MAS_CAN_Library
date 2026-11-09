@@ -28,6 +28,7 @@ constexpr uint32_t kReqTimeoutUs = 50000;
 constexpr uint8_t kReqRetries = 2;
 constexpr uint8_t kClearRetries = 3;
 constexpr uint32_t kLoadWindowUs = 1000000;
+constexpr uint32_t kFaultRereadUs = 100000; // 異常が立っている間、詳細を読み直す間隔（API-66）
 constexpr float kTwoPi = 6.28318530718f;
 constexpr uint32_t kLsbRetryUs = 1000000; // 刻みの書き込みに失敗したら、これだけ待って書き直す
 constexpr uint8_t kItemCurrentLsb = 48;
@@ -262,14 +263,18 @@ void Host::handleMdFeedback(const Frame& f, uint32_t now) {
             m->fault_known = false; // 異常の詳細を読み直す
         }
     }
-    if (!m->fb_seen) {
-        fb.position = mas_can_u24_diff(raw.position, 0);
-        m->fb_seen = true; // ここから刻みを書きに行く（API-44。pickResolution）
-    } else if (!m->relink) {
-        fb.position += mas_can_u24_diff(raw.position, m->last_raw_pos);
+    if (raw.status & MAS_CAN_MD_ST_SPEED_INVALID) {
+        m->relink = true; // 位置が無効（M-18 の bit 1）。数えず、有効に戻ったら結び直す
+    } else {
+        if (!m->fb_seen) {
+            fb.position = mas_can_u24_diff(raw.position, 0);
+        } else if (!m->relink) {
+            fb.position += mas_can_u24_diff(raw.position, m->last_raw_pos);
+        }
+        m->relink = false;
+        m->last_raw_pos = raw.position;
     }
-    m->relink = false;
-    m->last_raw_pos = raw.position;
+    m->fb_seen = true; // ここから刻みを書きに行く（API-44。pickResolution）
 
     bool current_ok = !(raw.status & MAS_CAN_MD_ST_CURRENT_INVALID);
     bool speed_ok = !(raw.status & MAS_CAN_MD_ST_SPEED_INVALID);
@@ -286,7 +291,8 @@ void Host::handleMdFeedback(const Frame& f, uint32_t now) {
     fb.online = true;
 
     if (raw.status & MAS_CAN_MD_ST_FAULT) {
-        if (!m->fault_known && !m->fault_reading) {
+        bool stale = m->fault_known && elapsed(now, m->fault_read_us, kFaultRereadUs);
+        if ((!m->fault_known || stale) && !m->fault_reading) {
             SettingReq r;
             r.dev = m;
             r.op = MAS_CAN_OP_READ;
@@ -443,9 +449,15 @@ void Host::handleController(const Frame& f, uint32_t now) {
 
 bool Host::queueSetting(const SettingReq& req) {
     for (uint8_t i = 0; i < q_len_; i++) {
+        if (i == 0 && req_active_ && active_from_queue_) continue; // 送っている要求は差し替えない
         SettingReq& q = queue_[i];
         if (q.tag == req.tag && q.dev == req.dev) { // 同じ目的が待っていれば値だけ差し替える
-            q = req;
+            if (req.tag == ReqTag::ClearFault) { // 消す bit は合わせる（API-19 の bit を失わない）
+                mas_can_value_set_u32(q.value,
+                                      mas_can_value_u32(q.value) | mas_can_value_u32(req.value));
+            } else {
+                q = req;
+            }
             return true;
         }
     }
@@ -501,6 +513,7 @@ void Host::handleSettingResponse(const Frame& f) {
             if (s.result != MAS_CAN_RES_OK) break;
             uint32_t bits = mas_can_value_u32(s.value);
             m->fault_known = true;
+            m->fault_read_us = port_->micros();
             bool noted = m->restart_noted;
             m->restart_noted = false;
             if (bits & MAS_CAN_FAULT_RESTARTED) { // 再起動の bit はライブラリが消す（API-19）
@@ -617,8 +630,9 @@ void Host::estop() {
     if (!started_) return;
     Frame f{};
     f.id = MAS_CAN_ID_ESTOP;
-    send(f); // すぐ 1 本送り、以後は 10 Hz
-    last_estop_us_ = port_->micros();
+    uint32_t now = port_->micros();
+    // すぐ 1 本送り、以後は 10 Hz。送れなければ次の update で送り直す
+    last_estop_us_ = send(f) ? now : now - kEstopPeriodUs;
 }
 
 void Host::clearEstop() {

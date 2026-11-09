@@ -29,7 +29,12 @@ struct FakePort : mcan::Port {
     int answered_seq = -1; // answerAll が最後に応えた通し番号
     std::deque<mcan::Frame> rx;
     std::vector<mcan::Frame> tx;
+    int fail_sends = 0; // この本数だけ送信に失敗する（送信の箱が満杯）
     bool send(const mcan::Frame& f) override {
+        if (fail_sends > 0) {
+            fail_sends--;
+            return false;
+        }
         tx.push_back(f);
         return true;
     }
@@ -420,6 +425,9 @@ static void test_servo() {
     a.setAngle(0.5f);
     step(host, port, 20);
     CHECK(port.last(0x230)->data[1] == 75); // 1250 µs
+    a.setAngle(NAN); // 無視して前の指令を保つ（API-67）
+    step(host, port, 20);
+    CHECK(port.last(0x230)->data[1] == 75);
     a.release();
     step(host, port, 20);
     CHECK(port.last(0x230)->data[1] == MAS_CAN_SERVO_STOP);
@@ -531,6 +539,70 @@ static void test_resolution_robustness() {
     CHECK(w.ready());
 }
 
+// 速度と位置が無効（bit 1）の FB では数えず、有効に戻ったら結び直す（M-18）
+static void test_position_invalid() {
+    FakePort port;
+    mcan::Host host;
+    host.begin(port);
+    mcan::Md m = host.md(0);
+    bringUp(host, port, 0);
+    pushFb(port, 0, 0x40, 0, 0, 0x7FFF00);
+    step(host, port, 1);
+    int64_t held = m.position();
+    pushFb(port, 0, 0x40 | MAS_CAN_MD_ST_SPEED_INVALID); // エンコーダが抜けた
+    step(host, port, 1);
+    CHECK(m.position() == held);
+    pushFb(port, 0, 0x40, 0, 0, 0x800010);
+    step(host, port, 1);
+    CHECK(m.position() == held); // 結び直す
+    pushFb(port, 0, 0x40, 0, 0, 0x800020);
+    step(host, port, 1);
+    CHECK(m.position() == held + 16);
+}
+
+// onFault の中で clearFault() を呼んでも、再起動の bit を消す要求が失われない（API-19）
+static mcan::Md* g_clear_md = nullptr;
+static void test_clear_fault_merge() {
+    FakePort port;
+    mcan::Host host;
+    host.begin(port);
+    mcan::Md m = host.md(1);
+    g_clear_md = &m;
+    host.onFault([](mcan::Device&, uint32_t) { g_clear_md->clearFault(); });
+    bringUp(host, port, 1);
+    pushFb(port, 1, MAS_CAN_MD_ST_FAULT | 0x40);
+    port.tx.clear();
+    step(host, port, 1);
+    const mcan::Frame* req = port.last(0x400);
+    CHECK(req && req->data[2] == 5);
+    uint32_t detail = 0x101; // 再起動 ＋ 過電流
+    respond(port, *req, MAS_CAN_RES_OK, &detail);
+    step(host, port, 1);
+    answerAll(host, port, 40);
+    uint32_t cleared = 0;
+    for (auto& f : port.tx) {
+        mas_can_setting_t s;
+        if (f.id == 0x400 && mas_can_setting_decode(&f, &s) && s.op == MAS_CAN_OP_WRITE &&
+            s.item == 5)
+            cleared |= mas_can_value_u32(s.value);
+    }
+    CHECK(cleared == 0x101);
+}
+
+// estop() の最初の 1 本が送れなければ、次の update で送り直す
+static void test_estop_send_fail() {
+    FakePort port;
+    mcan::Host host;
+    host.begin(port);
+    step(host, port, 200);
+    port.tx.clear();
+    port.fail_sends = 1;
+    host.estop();
+    CHECK(port.count(0x000) == 0);
+    step(host, port, 1);
+    CHECK(port.count(0x000) == 1);
+}
+
 int main() {
     test_resolution_robustness();
     test_ready_and_commands();
@@ -542,6 +614,9 @@ int main() {
     test_controller();
     test_servo();
     test_wait_ready_and_misc();
+    test_position_invalid();
+    test_clear_fault_merge();
+    test_estop_send_fail();
     if (failures) {
         std::printf("%d failure(s)\n", failures);
         return 1;

@@ -40,6 +40,7 @@ typedef struct {
     bool md_has_current; /* 電流を測れる */
     bool md_has_speed;   /* 速度と位置を測れる */
     bool md_has_coast;   /* 空転を出せる（出せなければ止め方 34 は 1 に丸める） */
+    bool md_no_duty;     /* duty を出せない（中継役など。M-59）。0 で初期化した基板は出せる */
 
     /* 能力の上限（D19: 超える値は抑えて受け付ける） */
     uint32_t md_current_limit_max_ma; /* 電流の上限（設定 33）の最大 */
@@ -52,7 +53,8 @@ typedef struct {
     /* 保存した設定の読み書き（フラッシュ）。成功で true。ctx はそのまま渡される */
     bool (*load)(void* ctx, void* buf, size_t len);
     bool (*save)(void* ctx, const void* buf, size_t len);
-    void (*restart)(void* ctx); /* 設定 6（再起動）。応答を送り終えてから呼ばれる（D28） */
+    void (*restart)(void* ctx); /* 設定 6（再起動）。応答を CAN に渡した後に呼ばれる（D28）。
+                                 * 線に出し終えるのを待つのはポート（C-66） */
     void* ctx;
 } mas_can_node_config_t;
 
@@ -134,6 +136,7 @@ typedef struct {
     bool estop;                 /* E-stop でラッチ中 */
     bool ready;                 /* 起動の知らせを送った後か（FB はその後から。C-37） */
     uint32_t ready_us;          /* 起動の知らせを送った時刻（猶予の起点。C-89） */
+    bool grace_over;            /* 猶予が明けた（明けたら時刻を比べない。µs の一周で戻らない） */
     bool restart_pending;
     mas_can_frame_t txq[MAS_CAN_NODE_TXQ];
     uint8_t txq_head, txq_len;
@@ -149,6 +152,9 @@ void mas_can_node_tick(mas_can_node_t* node, uint32_t now_us);
  * 再起動の要求があれば、待ち行列が空になった時点で cfg.restart を呼ぶ（D28）。 */
 const mas_can_frame_t* mas_can_node_peek_tx(const mas_can_node_t* node);
 void mas_can_node_drop_tx(mas_can_node_t* node);
+
+/* 起動の猶予（C-89）の中か。指令を自前で受けるポート（サーボなど）が使う。 */
+bool mas_can_node_in_grace(mas_can_node_t* node, uint32_t now_us);
 
 /* 基板が見つけた異常の bit を立てる（異常の詳細。種類ごとの bit 8〜など）。 */
 void mas_can_node_raise_fault(mas_can_node_t* node, uint32_t bits);

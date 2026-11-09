@@ -10,7 +10,7 @@ mcan::Host can;
 
 mcan::Md wheel[4] = {can.md(0), can.md(1), can.md(2), can.md(3)};
 mcan::Md lift = can.md(4);
-mcan::Md roller = can.md(5);
+mcan::Md roller = can.md(8); // lift（電流）と別の束に。同じ束に混ぜると送られない（C-39、API-52）
 mcan::Controller pad = can.controller(0);
 mcan::Servo arm = can.servo(0);
 

@@ -54,6 +54,7 @@ struct MdState : DeviceState {
     bool restart_noted = false; // 再起動を FB で拾った。異常の詳細の bit 0 で二重に処理しない
     bool fault_known = false, fault_reading = false;
     uint32_t fault_detail = 0;
+    uint32_t fault_read_us = 0; // 異常の詳細を最後に読めた時刻（API-66）
 };
 
 struct ControllerState : DeviceState {

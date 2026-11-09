@@ -2,3 +2,4 @@ test_core
 test_host
 test_node
 *.o
+test_roundtrip

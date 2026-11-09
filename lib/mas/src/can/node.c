@@ -119,7 +119,14 @@ void mas_can_node_ready(mas_can_node_t* n, uint32_t now_us) {
     }
     n->ready = true;
     n->ready_us = now_us;
+    n->grace_over = false;
     for (uint8_t i = 0; i < n->cfg.md_count; i++) n->md[i].last_fb_us = now_us;
+}
+
+bool mas_can_node_in_grace(mas_can_node_t* n, uint32_t now_us) {
+    if (!n->ready) return true;
+    if (!n->grace_over && elapsed(now_us, n->ready_us, GRACE_US)) n->grace_over = true;
+    return !n->grace_over;
 }
 
 void mas_can_node_raise_fault(mas_can_node_t* n, uint32_t bits) { n->fault |= bits; }
@@ -137,7 +144,7 @@ static void handle_md_command(mas_can_node_t* n, const mas_can_frame_t* f, uint3
     mas_can_md_cmd_t cmd;
     uint8_t frame_no;
     if (!mas_can_md_cmd_parse_id(f->id, &cmd, &frame_no) || n->estop) return;
-    if (!n->ready || !elapsed(now, n->ready_us, GRACE_US)) return; /* 起動の猶予（C-89） */
+    if (mas_can_node_in_grace(n, now)) return; /* 起動の猶予（C-89） */
     for (uint8_t i = 0; i < n->cfg.md_count; i++) {
         uint8_t ch = (uint8_t)(n->cfg.md_first_ch + i);
         int16_t raw;
@@ -153,6 +160,7 @@ static void handle_md_command(mas_can_node_t* n, const mas_can_frame_t* f, uint3
         bool can = true;
         if (cmd == MAS_CAN_MD_CMD_CURRENT) can = n->cfg.md_has_current;
         if (cmd == MAS_CAN_MD_CMD_SPEED) can = n->cfg.md_has_speed;
+        if (cmd == MAS_CAN_MD_CMD_DUTY) can = !n->cfg.md_no_duty; /* M-59 */
         if (cmd == MAS_CAN_MD_CMD_POSITION) can = false; /* D20: 最初のファームでは実装しない */
         m->unsupported = !can;                           /* D10 */
 
@@ -480,12 +488,9 @@ mas_can_md_output_t mas_can_md_output(mas_can_node_t* n, uint8_t local) {
     mas_can_md_output_t out = {MAS_CAN_MD_OUT_STOP, true, 0.0f, false};
     if (local >= n->cfg.md_count) return out;
     mas_can_node_md_t* m = &n->md[local];
-    if (n->estop) {
-        out.brake = true; /* E-stop は常にブレーキ（M-51） */
-        return out;
-    }
-    if (md_stopped(n, m)) {
-        out.brake = m->set.stop_brake;
+    if (md_stopped(n, m)) { /* 理由によらず、動き出すときに制御の状態をリセットする（M-25） */
+        m->reset_pending = true;
+        out.brake = n->estop || m->set.stop_brake; /* E-stop は常にブレーキ（M-51） */
         return out;
     }
     out = m->out;

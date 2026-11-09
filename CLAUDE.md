@@ -17,7 +17,7 @@ MAS CAN プロトコル v1 の再設計と、そのライブラリ・ファー�
 
 ## テストとビルド
 
-- PC のテスト: `make -C lib/mas/test`（`test_core`、`test_node`、`test_host`）。
+- PC のテスト: `make -C lib/mas/test`（`test_core`、`test_node`、`test_host`、`test_roundtrip`）。
 - 例と RP2040 のファームのビルド: そのフォルダで `pio run`（`examples/` の各例、`firmware/CAN-Servo-v1`）。教える例は `md_minimal`、`servo_minimal`（主制御）、`node_md_rp2040`（基板側の雛形）。
 - MD のファーム: `firmware/CAN_MD` を CMake で **Release** でビルドする（Debug は FLASH に入らない）。コンパイラは `~/.local/share/stm32cube/bundles/gnu-tools-for-stm32/*/bin`。
 

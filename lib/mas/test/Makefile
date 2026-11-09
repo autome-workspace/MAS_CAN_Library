@@ -7,10 +7,11 @@ CORE = ../src/can/core/md_frame.c ../src/can/core/setting.c
 HOST = ../src/can/host.cpp ../src/can/device/md.cpp ../src/can/device/controller.cpp \
        ../src/can/device/servo.cpp ../src/can/device/pin.cpp
 
-test: test_core test_node test_host
+test: test_core test_node test_host test_roundtrip
 	./test_core
 	./test_node
 	./test_host
+	./test_roundtrip
 
 test_core: test_core.c $(CORE)
 	$(CC) $(CFLAGS) -o $@ test_core.c $(CORE)
@@ -22,7 +23,11 @@ test_host: test_host.cpp $(HOST) $(CORE)
 	$(CC) $(CFLAGS) -c $(CORE)
 	$(CXX) $(CXXFLAGS) -o $@ test_host.cpp $(HOST) md_frame.o setting.o
 
+test_roundtrip: test_roundtrip.cpp ../src/can/node.c $(HOST) $(CORE)
+	$(CC) $(CFLAGS) -c $(CORE) ../src/can/node.c
+	$(CXX) $(CXXFLAGS) -o $@ test_roundtrip.cpp $(HOST) md_frame.o setting.o node.o
+
 clean:
-	rm -f test_core test_node test_host *.o
+	rm -f test_core test_node test_host test_roundtrip *.o
 
 .PHONY: test clean

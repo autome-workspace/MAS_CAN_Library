@@ -271,11 +271,63 @@ static void test_settings(void) {
           r.result == MAS_CAN_RES_OUT_OF_RANGE && restarts == 1);
 }
 
+static void test_grace_wrap(void) {
+    mas_can_node_config_t c = config();
+    mas_can_frame_t out[8];
+    mas_can_node_init(&node, &c, now);
+    mas_can_node_ready(&node, now);
+    tick_ms(250);
+    drain(out, 8);
+    send_cmd(MAS_CAN_MD_CMD_CURRENT, 500, 8);
+    CHECK(mas_can_md_output(&node, 0).mode == MAS_CAN_MD_OUT_CURRENT);
+    // µs が一周して、起動の知らせから 2^32 + 50 ms。猶予はもう明けている（C-89）
+    now = node.ready_us + 50000u;
+    send_cmd(MAS_CAN_MD_CMD_CURRENT, 600, 8);
+    CHECK(!mas_can_node_in_grace(&node, now));
+    CHECK(mas_can_md_output(&node, 0).value == 600.0f);
+}
+
+static void test_protect_reset(void) {
+    mas_can_md_measure_t m;
+    memset(&m, 0, sizeof(m));
+    send_cmd(MAS_CAN_MD_CMD_CURRENT, 500, 8);
+    mas_can_md_output(&node, 0);
+    m.protecting = true; // 保護で止める（bit 4）
+    mas_can_md_set_measure(&node, 0, &m);
+    send_cmd(MAS_CAN_MD_CMD_CURRENT, 500, 8);
+    CHECK(mas_can_md_output(&node, 0).mode == MAS_CAN_MD_OUT_STOP);
+    m.protecting = false;
+    mas_can_md_set_measure(&node, 0, &m);
+    send_cmd(MAS_CAN_MD_CMD_CURRENT, 500, 8);
+    mas_can_md_output_t o = mas_can_md_output(&node, 0);
+    CHECK(o.mode == MAS_CAN_MD_OUT_CURRENT && o.reset_ctrl); // 理由によらずリセット（M-25）
+}
+
+static void test_no_duty(void) {
+    mas_can_node_config_t c = config();
+    mas_can_frame_t out[8];
+    c.md_no_duty = true; // 中継役（M-59）
+    mas_can_node_init(&node, &c, now);
+    mas_can_node_ready(&node, now);
+    tick_ms(250);
+    drain(out, 8);
+    send_cmd(MAS_CAN_MD_CMD_DUTY, mas_can_md_duty_pack(8191, false), 8);
+    CHECK(mas_can_md_output(&node, 0).mode == MAS_CAN_MD_OUT_STOP);
+    tick_ms(10);
+    CHECK(drain(out, 8) == 1 && (out[0].data[0] & MAS_CAN_MD_ST_STOPPED) &&
+          (out[0].data[0] >> 6) == MAS_CAN_MD_CMD_DUTY); // M-30 と同じ FB
+    send_cmd(MAS_CAN_MD_CMD_CURRENT, 500, 8); // ほかの指令は受ける
+    CHECK(mas_can_md_output(&node, 0).mode == MAS_CAN_MD_OUT_CURRENT);
+}
+
 int main(void) {
     test_boot_and_fb();
     test_commands();
     test_estop_sync();
     test_settings();
+    test_grace_wrap();
+    test_protect_reset();
+    test_no_duty();
     if (failures) {
         printf("%d failure(s)\n", failures);
         return 1;
