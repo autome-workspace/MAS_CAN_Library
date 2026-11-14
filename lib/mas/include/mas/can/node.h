@@ -3,7 +3,7 @@
  *
  * 使い方（ポートの main ループ）:
  *   mas_can_node_init(&node, &cfg, now);
- *   ... 準備ができたら mas_can_node_ready(&node);       // 起動の知らせ（D30）
+ *   ... 準備ができたら mas_can_node_ready(&node, now);  // 起動の知らせ
  *   loop:
  *     受けたフレームごとに mas_can_node_on_frame(&node, &f, now);
  *     mas_can_node_tick(&node, now);

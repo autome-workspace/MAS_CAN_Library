@@ -94,7 +94,7 @@
 
 基板:
 
-- `mas_can_node_init` が保存した設定を読み（`load`）、異常の詳細の bit 0 を立てます。`mas_can_node_ready` が起動の知らせを送る待ち行列に積み、FB と猶予の時計を始めます。呼ぶ順を守るのはポートです（[board.md](board.md) の「呼ぶ順」）。
+- `mas_can_node_init` が保存した設定を読み（`load`）、異常の詳細の bit 0 を立てます。`mas_can_node_ready` が起動の知らせを送る待ち行列に積み、FB と猶予の時計を始めます。呼ぶ順を守るのはポートです（案内の [node の関数と欄](../guide/board/node.md) の「呼ぶ順」）。
 - 猶予の起点は `mas_can_node_ready` を呼んだ時刻です。台帳の起点は起動の知らせを送ったときで、差は線に出るまでの待ちの分だけです（[bus.md](bus.md) の 3.5）。
 - 猶予の間に受けた指令は、node.c の `handle_md_command` が捨てます（`mas_can_node_in_grace`）。受けた指令として数えないので、猶予が明けた後は次の指令から動きます。
 - 猶予の間の止め方は、台帳では未定です。今の node は項目 34 に従います（`mas_can_md_output` が `brake` に項目 34 を入れる。[md.md](md.md) の 4.6）。
@@ -120,8 +120,8 @@
 | 異常の詳細の bit 0 と消し方 | [settings.md](settings.md) の 7、8 | C-67、C-69 |
 | 設定のフレームと 1 つずつ送ること | [settings.md](settings.md) の 2、3 | C-46、C-48、C-51、C-85 |
 | SYNC | [bus.md](bus.md) の 3.3 | C-32、C-33 |
-| ライブラリが刻みを書き、確かめるまで止める値を送る | [overview.md](overview.md) の 7 | API-15、API-43、API-44、API-65 |
-| ライブラリが異常の詳細を読み、bit 0 を消す | [overview.md](overview.md) の 7 | API-18、API-19 |
+| ライブラリが刻みを書き、確かめるまで止める値を送る | 案内の [しくみ](../guide/host/how-it-works.md) | API-15、API-43、API-44、API-65 |
+| ライブラリが異常の詳細を読み、bit 0 を消す | 案内の [しくみ](../guide/host/how-it-works.md) | API-18、API-19 |
 
 ## 2. 通常の運転
 
@@ -313,7 +313,7 @@
 | MD の止め方と FB の bit | [md.md](md.md) の 4.3、4.6 | M-51、M-58 |
 | MD の解除の後 | [md.md](md.md) の 4.3 | M-27 |
 | サーボ | [servo.md](servo.md) の 3 | S-9 |
-| ライブラリの E-stop | [overview.md](overview.md) の 7 | API-21、API-22、API-23、API-24、API-48、API-49 |
+| ライブラリの E-stop | 案内の [しくみ](../guide/host/how-it-works.md) | API-21、API-22、API-23、API-24、API-48、API-49 |
 
 ## 5. 基板が再起動したとき
 
@@ -402,7 +402,7 @@ CAN-Servo 基板（サーボ 8 ch と MD 4 ch）が起動し直すと、次の�
 | 再起動で戻るもの | [bus.md](bus.md) の 7 | C-80、M-2、M-56、C-30 |
 | E-stop を送り続ける | [bus.md](bus.md) の 3.1 | C-31 |
 | サーボに FB が無いこと | [servo.md](servo.md) の 4 | S-10、S-7 |
-| ライブラリが送り直す | [overview.md](overview.md) の 7 | API-15、API-65 |
+| ライブラリが送り直す | 案内の [しくみ](../guide/host/how-it-works.md) | API-15、API-65 |
 
 ## 6. 主制御が再起動したとき
 
@@ -445,7 +445,7 @@ CAN-Servo 基板（サーボ 8 ch と MD 4 ch）が起動し直すと、次の�
 - `can.waitReady(ms)` を `loop()` の前に呼べば、全 MD の ch が ready になるまで待てます。
 - E-stop のラッチが残っていれば、FB の bit 5（`w.estopLatched()`）で分かります。新しい主制御は自分から解除しません。解除はアプリが `can.clearEstop()` を呼びます。
 - SYNC の時計は、新しい主制御の起動から数え直します。MD とサーボの基板は SYNC の時刻を使いません。
-- FB を切った MD（項目 35 ＝ 0）は、最初の FB が来ないので刻みを書けず、`ready()` にならないまま止める値を送り続けます。台帳ではこの扱いは決まっていません。ライブラリで動かす ch は、項目 35 を 0 にしないでください（[overview.md](overview.md) の 7）。
+- FB を切った MD（項目 35 ＝ 0）は、最初の FB が来ないので刻みを書けず、`ready()` にならないまま止める値を送り続けます。台帳ではこの扱いは決まっていません。ライブラリで動かす ch は、項目 35 を 0 にしないでください（案内の [しくみ](../guide/host/how-it-works.md)）。
 
 ### 決まりの場所
 
@@ -453,7 +453,7 @@ CAN-Servo 基板（サーボ 8 ch と MD 4 ch）が起動し直すと、次の�
 |---|---|---|
 | 途絶 | [bus.md](bus.md) の 5 | C-91、M-57 |
 | プログラムの値は基板に残り、主制御が毎回送る | [settings.md](settings.md) の 1 | C-80、M-56 |
-| 主制御だけの再起動で刻みを書く | [bus.md](bus.md) の 7、[overview.md](overview.md) の 7 | API-43、API-44、API-65、API-45 |
+| 主制御だけの再起動で刻みを書く | [bus.md](bus.md) の 7、案内の [しくみ](../guide/host/how-it-works.md) | API-43、API-44、API-65、API-45 |
 | ラッチは解除か電源の再投入で解ける | [bus.md](bus.md) の 3.1 | C-30 |
 | SYNC の時刻を使わない | [bus.md](bus.md) の 3.3 | C-38、C-90 |
 
@@ -530,7 +530,7 @@ CAN-Servo 基板（サーボ 8 ch と MD 4 ch）が起動し直すと、次の�
 - 基板: node.c の `handle_setting` が答えます。受け持たない ch、DLC 8 でないもの、下位 3 bit が 0 でない ID、リモートフレームには答えません。予約の項目（42〜44、47）と知らない項目には、結果 1、値 0 を返します。署名違いの再起動は結果 3、値 0 です（[settings.md](settings.md) の 5 で、値の欄が台帳では未定のところ）。再起動の要求の byte 6 は見ません。
 - 異常の詳細（項目 5）は基板に 1 つで、ch ごとではありません（台帳では未定。[settings.md](settings.md) の 7）。
 - 保存は、範囲が 0 でも 1 でも、全 ch の分を丸ごと `save` に渡します（中身を更新するのは範囲の ch だけ）。CRC を付けます。保存した値が壊れていたら、起動で異常の詳細の bit 1 を立てます。
-- 再起動: node は応答を待ち行列に積み、待ち行列が空になった `mas_can_node_drop_tx` の中でポートの `restart` を呼びます。応答を線に出し終えるのを待つのはポートです。micro-MD と CAN-Servo-v1 の `restart` は最大 10 ms 待ちます。CAN_MD と `examples/node_md_rp2040` は待たずに再起動します（[board.md](board.md) の「台帳どおりでない点」）。
+- 再起動: node は応答を待ち行列に積み、待ち行列が空になった `mas_can_node_drop_tx` の中でポートの `restart` を呼びます。応答を線に出し終えるのを待つのはポートです。micro-MD、CAN-Servo-v1、雛形（`examples/node_md_rp2040`）の `restart` は最大 10 ms 待ちます。CAN_MD は待たずに再起動します（[board.md](board.md) の「既存のファームが決まりと違う所」）。
 - サーボの設定: CAN-Servo-v1 は `0x410` に答えません（項目 32〜34 も、共通の項目 0〜6 も持たない）。
 
 ### 決まりの場所
@@ -606,12 +606,12 @@ CAN-Servo 基板（サーボ 8 ch と MD 4 ch）が起動し直すと、次の�
 
 | 決まり | 辞書 | 台帳 |
 |---|---|---|
-| 一斉の問い合わせは無い、調べる手順 | [overview.md](overview.md) の 8 | C-83、C-36、C-49 |
+| 一斉の問い合わせは無い、調べる手順 | [overview.md](overview.md) の 10 | C-83、C-36、C-49 |
 | FB は指令が無くても送る | [md.md](md.md) の 3.5 | M-21、M-14 |
 | FB の形で測れるものが分かる | [md.md](md.md) の 3.2 | M-15、M-18 |
 | 共通の項目 0〜4 | [settings.md](settings.md) の 7 | C-60、C-61、C-63、C-65、C-71、C-86 |
 | 基板の種類の一覧 | [settings.md](settings.md) の 7 | C-92、C-93、C-96 |
-| プロトコルの版の互換 | [overview.md](overview.md) の 9 | C-73 |
+| プロトコルの版の互換 | [overview.md](overview.md) の 12 | C-73 |
 | 基板専用の周期フレームは無い、サーボに FB が無い | [ids.md](ids.md)、[servo.md](servo.md) の 4 | C-15、C-23、S-10 |
 
 ## 9. バスオフから戻ったとき
@@ -659,7 +659,7 @@ CAN-Servo 基板（サーボ 8 ch と MD 4 ch）が起動し直すと、次の�
 | `firmware/CAN_MD` | 自動復帰を有効にしている（`Core/Src/main.c` の `AutoBusOff`）。bit 2 を立てる処理は無い（C-68 どおりではない） |
 | `firmware/CAN-Servo-v1`、`examples/node_md_rp2040` | can2040 なので立てない |
 
-- ポートが送れない間、node が積んだフレームは待ち行列（8 本）に残り、戻った直後に出ます。溢れた分は捨てます。FB だけでなく設定の応答なども捨てられます（[board.md](board.md) の「気をつけること」）。
+- ポートが送れない間、node が積んだフレームは待ち行列（8 本）に残り、戻った直後に出ます。溢れた分は捨てます。FB だけでなく設定の応答なども捨てられます（案内の [node の関数と欄](../guide/board/node.md) の「気をつけること」）。
 
 主制御:
 
@@ -675,4 +675,4 @@ CAN-Servo 基板（サーボ 8 ch と MD 4 ch）が起動し直すと、次の�
 | 異常の詳細の bit 2 と、立てない実装 | [settings.md](settings.md) の 8 | C-67、C-68 |
 | FB の bit 0 | [bus.md](bus.md) の 6 | C-45 |
 | 途絶 | [bus.md](bus.md) の 5 | C-91 |
-| ライブラリが異常を読み、知らせる。bit 0 以外はアプリが消す | [overview.md](overview.md) の 7 | API-18、API-19、API-66 |
+| ライブラリが異常を読み、知らせる。bit 0 以外はアプリが消す | 案内の [しくみ](../guide/host/how-it-works.md) | API-18、API-19、API-66 |

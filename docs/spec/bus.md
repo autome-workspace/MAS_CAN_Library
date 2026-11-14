@@ -343,4 +343,4 @@ FB の無い種類（サーボ）の生存は確かめない（S-10）。サー�
 
 ## 9. 設定（class 4）
 
-基板の情報を読む、値を書く、保存する、初期化する仕組みは [settings.md](settings.md) にある。基板の種類や受け持つ ch の範囲を知るのも設定で行う（[overview.md](overview.md) の 8 節）。
+基板の情報を読む、値を書く、保存する、初期化する仕組みは [settings.md](settings.md) にある。基板の種類や受け持つ ch の範囲を知るのも設定で行う（[overview.md](overview.md) の 10 節）。

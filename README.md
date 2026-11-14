@@ -11,15 +11,25 @@ void loop() {
 }
 ```
 
+## 今の状態
+
+版は v1.0.0 です。モータードライバーとサーボが動きます。主制御は ESP32（ESP32-S3 を含む）と Raspberry Pi Pico（RP2040）に対応しています。
+
+基板は部の自作のもの 4 種類で、一覧は [今ある基板](docs/guide/boards.md) にあります。実機で確かめていないことがある文書には、その旨が書いてあります。
+
 ## どこを読むか
 
 | あなたは | 読むもの |
 |---|---|
-| はじめて使う | [はじめて回す](docs/guide/host/first-run.md) |
+| はじめてモーターを回す | [はじめて回す](docs/guide/host/first-run.md) |
+| はじめてサーボを動かす | [はじめてサーボを動かす](docs/guide/host/first-servo.md) |
+| 配線の仕方を知りたい | [つなぎ方](docs/guide/wiring.md) |
 | 動かなくて困っている | [動かないとき](docs/guide/host/troubleshooting.md) |
-| 主制御のプログラムを書いている | [案内](docs/guide/README.md) の「主制御のプログラムを書く」 |
+| 機体 1 台のプログラムを組む | [機体を組む](docs/guide/host/robot.md) |
+| 主制御のプログラムを書いている | [案内](docs/guide/README.md) の「慣れてきたら」 |
 | 手元の基板のことを知りたい | [今ある基板](docs/guide/boards.md) |
 | 基板のファームを作る | [案内](docs/guide/README.md) の「基板のファームを作る」 |
+| PC で線を見る、PC から指令する | [線を見る、PC から使う](docs/guide/pc.md) |
 | 決まりを正確に知りたい | [仕様書](docs/spec/) |
 | このリポジトリを直す | [docs/internal/](docs/internal/) |
 
@@ -34,7 +44,9 @@ ESP32:
 platform = espressif32
 board = esp32dev            ; ESP32-S3 は esp32-s3-devkitc-1
 framework = arduino
+monitor_speed = 115200
 lib_deps = https://github.com/autome-workspace/MAS_CAN_Library.git#v1.0.0
+build_flags = -D CAN_TX=5 -D CAN_RX=4
 ```
 
 Raspberry Pi Pico（RP2040）。CAN のためのライブラリ（ACAN2040）も足します。
@@ -45,10 +57,14 @@ platform = https://github.com/maxgerhardt/platform-raspberrypi.git#9c167c6b8aac4
 board = pico
 board_build.core = earlephilhower
 framework = arduino
+monitor_speed = 115200
 lib_deps =
     https://github.com/autome-workspace/MAS_CAN_Library.git#v1.0.0
     https://github.com/obdevel/ACAN2040.git#1.0.6
+build_flags = -D CAN_TX=0 -D CAN_RX=1
 ```
+
+`build_flags` の行は、トランシーバにつないだ TX と RX のピンの番号です。プログラムの `CAN_TX`、`CAN_RX` に、この番号が入ります。例（`examples/`）は、どれもこの書き方です。
 
 ## 最小のプログラム
 
@@ -62,7 +78,7 @@ mcan::Host can;
 mcan::Md motor = can.md(0);
 
 void setup() {
-    can.begin(5, 4);  // CAN の TX、RX のピン
+    can.begin(CAN_TX, CAN_RX);  // platformio.ini の build_flags で決めたピン
     can.waitReady(1000);
 }
 
@@ -78,7 +94,9 @@ void loop() {
 - `setDuty` などは、値を置くだけです。送るのは `update()` です。
 - 単位は、速度が rad/s、電流が A、角度が rad です。duty は −1 から +1 です。
 
-**配線から順に進める手順は、[はじめて回す](docs/guide/host/first-run.md) にあります。** はじめての人は、そちらから進めてください。
+`can.begin(5, 4)` のように、ピンの番号を数字で直接書いても動きます。そのときは、`platformio.ini` の `build_flags` は要りません。ただ、数字で書くと、主制御を Pico に替えたときにプログラムも直すことになります（Pico の例のピンは 0 と 1）。`CAN_TX`、`CAN_RX` で書いておけば、直すのは `platformio.ini` だけです。
+
+**配線から順に進める手順は、[はじめて回す](docs/guide/host/first-run.md)（モーター）と [はじめてサーボを動かす](docs/guide/host/first-servo.md) にあります。** はじめての人は、そちらから進めてください。
 
 ## 入っているもの
 

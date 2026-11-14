@@ -1,14 +1,14 @@
 # 例
 
-**使い方:** [はじめて回す](../docs/guide/host/first-run.md) の手順でプロジェクトを作り、その `src/main.cpp` の中身を、使いたい例の `src/main.cpp` の中身に置き換えます。各例のフォルダにある `platformio.ini` は、このリポジトリの中でビルドするためのものなので、写さなくて構いません。
+**使い方:** [はじめて回す](../docs/guide/host/first-run.md)（サーボなら [はじめてサーボを動かす](../docs/guide/host/first-servo.md)）の手順でプロジェクトを作り、その `src/main.cpp` の中身を、使いたい例の `src/main.cpp` の中身に置き換えます。各例のフォルダにある `platformio.ini` は、このリポジトリの中でビルドするためのものなので、写さなくて構いません。
 
-上から順に使います。
+モーターは上から順に使います。サーボは `servo_minimal` から始めます。
 
 | 例 | 何をするか | いつ使うか |
 |---|---|---|
 | [`md_minimal`](md_minimal/) | モーターを 1 つ回す | 最初に。手順は [はじめて回す](../docs/guide/host/first-run.md) |
 | [`md_check`](md_check/) | モーターを 1 つ回しながら、回らない理由を 1 語で表示する | 回らないとき。言葉の意味は [動かないとき](../docs/guide/host/troubleshooting.md) |
-| [`servo_minimal`](servo_minimal/) | サーボを 1 つ動かす | サーボを使うとき |
+| [`servo_minimal`](servo_minimal/) | サーボを 1 つ動かす | サーボを使うとき。手順は [はじめてサーボを動かす](../docs/guide/host/first-servo.md)。サーボの基板は返事をしないので、`md_check` は使えません |
 
 次の 2 つは、基板を作る人のものです。
 
