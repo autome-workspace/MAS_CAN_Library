@@ -58,9 +58,16 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     ../../lib/mas/include
 )
 
+# DIP 0 のときの ch（README の「ch」）。キャッシュに残るので、戻すときは 0 を渡す
+set(CAN_MD_FIRST_CH 0 CACHE STRING "DIP 0 のときの ch（0〜24）")
+if(NOT CAN_MD_FIRST_CH EQUAL 0)
+    message(WARNING "CAN_MD_FIRST_CH = ${CAN_MD_FIRST_CH}: ch は DIP ＋ ${CAN_MD_FIRST_CH}")
+endif()
+
 # Add project symbols (macros)
 target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user defined symbols
+    CAN_MD_FIRST_CH=${CAN_MD_FIRST_CH}
 )
 
 # Remove wrong libob.a library dependency when using cpp files

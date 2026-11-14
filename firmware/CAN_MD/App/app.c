@@ -12,6 +12,13 @@ extern CAN_HandleTypeDef hcan;
 extern TIM_HandleTypeDef htim2;
 extern TIM_HandleTypeDef htim3;
 
+#ifndef CAN_MD_FIRST_CH
+#define CAN_MD_FIRST_CH 0 /* DIP 0 のときの ch。k ＝ DIP ＋ これ（C-75）。CMake で渡す */
+#endif
+#if CAN_MD_FIRST_CH < 0 || CAN_MD_FIRST_CH > 24
+#error "CAN_MD_FIRST_CH は 0〜24（DIP 7 でも ch 31 に収める。M-1）"
+#endif
+
 #define PWM_PERIOD 532u /* TIM2、TIM3 の周期（16 MHz で約 30 kHz） */
 #define PWM_FULL_ON (PWM_PERIOD + 1u)
 #define ADC_FULL 4095u
@@ -333,7 +340,7 @@ void app_init(void) {
     cfg.uid = unique_id();
     cfg.board_type = MAS_CAN_BOARD_TYPE(MAS_CAN_BOARD_MD_2CH, 1);
     cfg.fw_version = 0x00000100u;       /* 0.1.0 */
-    cfg.md_first_ch = read_dip();
+    cfg.md_first_ch = (uint8_t)(read_dip() + CAN_MD_FIRST_CH);
     cfg.md_count = 1;
     cfg.md_has_current = true;
     cfg.md_has_speed = false;
