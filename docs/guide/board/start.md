@@ -425,7 +425,7 @@ void motorUpdate(uint8_t i) {
 ```
 
 - **`mas_can_md_output(&node, i)` と `mas_can_md_set_measure(&node, i, &m)` は、同じ `i` で、1 周に 1 回ずつ呼びます。** `i` が違えば、別のモーターです。
-- **雛形をこの形にするには、** ピンを `kMotorPins` のような表にし、`motorApply()` にモーターの番号を渡し、`loop()` の 3 を番号ごとに回します。
+- **雛形をこの形にするには、** ピンを `kMotorPins` のような表にし、`motorApply()` にモーターの番号 `i` を渡し、`loop()` の 3 を番号ごとに回します。土台にするのは雛形の `motorApply()` です。中の `kPinA` を `kMotorPins[i][0]` に、`kPinB` を `kMotorPins[i][1]` に置き換えれば、ブレーキの分岐はそのまま使えます。
 - **保存の間に出力を切る `settingsSave()` も、全部のモーターのピンを切るようにします。** 雛形は `kPinA` と `kPinB` しか切っていません。CAN-Servo のファームは、`forceOutputsLow()` で全部のピンを Low にしています。
 - **CAN-Servo のファームは、ブレーキを使いません。** 止めるときも、いつも空転で出します。使っているドライバ（AM2837）のブレーキを、データシートで確かめていないからです。ブレーキを出せる基板では、雛形の `motorApply()` のように `brake` を見てください。
 
