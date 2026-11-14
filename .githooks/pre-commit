@@ -1,0 +1,8 @@
+#!/bin/sh
+# 台帳や core のヘッダが変わったのに docs/spec/ を点検していなければ、コミットを止める。
+# 有効にする: git config core.hooksPath .githooks
+python3 "$(git rev-parse --show-toplevel)/tools/spec_check.py" && exit 0
+echo
+echo "docs/spec/ を点検して直し、python3 tools/spec_check.py --stamp で記録してからコミットする。"
+echo "点検を後に回すなら git commit --no-verify（後で必ず点検する）。"
+exit 1

@@ -3,6 +3,8 @@
 MAS CAN プロトコル v1 の再設計と、そのライブラリ・ファーム。**決定の正本は `docs/decisions/` の台帳**（書き方はその README）。`docs/redesign/` は 2026-10-14 までの記録で凍結。版とブランチの方針は `docs/versioning.md`。
 
 - 決定は台帳にだけ書く。検討は `docs/notes/` に日付付きで書き、書いた後は直さない。未決は `docs/decisions/open.md`。
+- 台帳と `docs/notes/`、`docs/redesign/` は作者の私用。外部の人が読むのは `docs/spec/`（台帳から作った仕様書、2026-11-14〜）。**台帳、`lib/mas` の core のヘッダ、`node.h`、`node.c`、`host.cpp` を変えたら、同じコミットで `docs/spec/` を点検して直し、`python3 tools/spec_check.py --stamp` で記録する。** 引かない決定は `docs/spec/uncited.md` に理由を書く。仕組みは `docs/spec/README.md` の「保守」。
+- ユーザは `docs/spec/` をスマホの artifact で読む（2026-11-14、ユーザ）。`docs/spec/` を直したら `python3 tools/spec_page.py <scratchpad>/mas-can-spec.html` で作り直し、同じ artifact に出し直す（中身を手で写さない）。
 
 ## 主制御側のライブラリ
 
