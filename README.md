@@ -78,27 +78,7 @@ void loop() {
 - `setDuty` などは、値を置くだけです。送るのは `update()` です。
 - 単位は、速度が rad/s、電流が A、角度が rad です。duty は −1 から +1 です。
 
-配線から順に進める手順は、[はじめて回す](docs/guide/host/first-run.md) にあります。
-
-`can.begin(5, 4)` は近道です。CAN の口を自分で作って、渡すこともできます。線を 2 本使うときなどに使います。
-
-```cpp
-mcan::Esp32Twai bus;  // ESP32
-
-void setup() {
-    bus.begin(GPIO_NUM_5, GPIO_NUM_4);  // TX、RX
-    can.begin(bus);
-}
-```
-
-```cpp
-mcan::Rp2040Can2040 bus;  // RP2040（PIO 0 と 1 で、2 本まで）
-
-void setup() {
-    bus.begin(5, 4, 1);  // TX、RX、PIO
-    can.begin(bus);
-}
-```
+**配線から順に進める手順は、[はじめて回す](docs/guide/host/first-run.md) にあります。** はじめての人は、そちらから進めてください。
 
 ## 入っているもの
 
