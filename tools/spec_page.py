@@ -16,9 +16,9 @@ ROOT = Path(__file__).resolve().parent.parent
 SPEC = ROOT / "docs/spec"
 REPO = "https://github.com/autome-workspace/MAS_CAN_Library"
 # 読む順。README.md と uncited.md、reviewed.txt は載せない
-ORDER = ["intro", "flows", "overview", "bus", "ids", "md", "servo", "settings", "board"]
+ORDER = ["overview", "flows", "bus", "ids", "md", "servo", "settings", "board"]
 LABEL = {
-    "intro": "はじめに", "flows": "場面ごとの流れ", "overview": "全体と用語", "bus": "共通の決まり",
+    "flows": "場面ごとの流れ", "overview": "全体と用語", "bus": "共通の決まり",
     "ids": "ID の一覧", "md": "MD", "servo": "サーボ", "settings": "設定", "board": "基板を作る",
 }
 
@@ -147,7 +147,7 @@ function render(id) {
 
 function route() {
   const m = location.hash.match(/^#doc-([\w-]+)$/);
-  render(m ? m[1] : "intro");
+  render(m ? m[1] : "overview");
 }
 window.addEventListener("hashchange", route);
 if (window.marked) route();
