@@ -343,12 +343,12 @@ node が持つ焼いた値（基板で変えられないもの）: 32 ＝ 0、34
 - 中身は `mas_can_node_saved_t`（今は 172 byte）。`len` はいつもこの大きさ。ポートは中身を解釈しない。
 - `load`: 読めたら true。node が印と CRC を確かめる。印が無い（消したままのフラッシュなど）ときは黙って焼いた値で起動する。印があって CRC か中身の形の版が合わないときは、異常の詳細の bit 1 を立てて焼いた値で起動する（node.c、C-67）。
 - `save`: 書き終えてから返す（C-55）。保存と初期化の要求のたびに、全 ch の分を丸ごと書く（node.h）。
-- 消去や書き込みの間に CPU が止まるマイコンでは、その間は出力を変えられない。どうするかは基板に任せ、基板の資料に書く（C-7）。既存のファームは分かれる: CAN_MD（`App/app.c` の `flash_save`）と micro-MD（`flash_write_page`）は書く前にブレーキにし、CAN-Servo-v1（`settingsSave`）は全部の出力を Low にし、`examples/node_md_rp2040` は何もしない。
+- 消去や書き込みの間に CPU が止まるマイコンでは、その間は出力を変えられない。どうするかは基板に任せ、基板の資料に書く（C-7）。既存のファームは分かれる: CAN_MD（`App/app.c` の `flash_save`）と micro-MD（`flash_write_page`）は書く前にブレーキにし、CAN-Servo-v1（`settingsSave`）は全部の出力を Low にし、`examples/node_md_rp2040`（`settingsSave`）は 2 本の入力を 0 にする（空転）。
 
 ### 再起動（restart）
 
 - 項目 6 に `"rst"` を書くと、node は成功の応答を積み、待ち行列が空になった `drop_tx` の中で `restart(ctx)` を呼ぶ（node.c）。
-- この時点で応答はコントローラに渡っただけで、線に出たとは限らない。応答を線に出し終えるのを待ってから再起動するのはポート（node.h、C-66）。例: `firmware/micro-MD/src/main.c` の `restart`（送信の箱が空くまで最大 10 ms 待つ）、`firmware/CAN-Servo-v1/src/main.cpp` の `restart`（送り終えの通知を数え、最大 10 ms 待つ）。CAN_MD と `examples/node_md_rp2040` は待たない（下の「既存のファーム」）。
+- この時点で応答はコントローラに渡っただけで、線に出たとは限らない。応答を線に出し終えるのを待ってから再起動するのはポート（node.h、C-66）。例: `firmware/micro-MD/src/main.c` の `restart`（送信の箱が空くまで最大 10 ms 待つ）、`firmware/CAN-Servo-v1/src/main.cpp` と `examples/node_md_rp2040/src/main.cpp` の `restart`（送り終えの通知を数え、最大 10 ms 待つ）。CAN_MD は待たない（下の「既存のファーム」）。
 - `restart` を NULL にすると、node は項目 6 に成功を返したうえで再起動しない。必ず渡す。
 
 ### main ループの雛形
@@ -550,11 +550,10 @@ can2040 はバスオフの仕組みを持たないので、RP2040 の 2 つは�
 | `firmware/CAN_MD` | 内蔵の RC 発振（HSI）から PLL で 16 MHz を作っている | C-10（水晶を推奨） |
 | `firmware/CAN_MD` | `restart` ですぐ `NVIC_SystemReset` し、応答を線に出し終えるのを待たない | C-66 |
 | `firmware/CAN_MD` | バスオフの自動復帰（`AutoBusOff`）は有効だが、復帰を見張らず、異常の詳細の bit 2 を立てない | C-68 |
-| `examples/node_md_rp2040` | `restart` で `rp2040.reboot()` をすぐ呼び、送り終えを待たない。写すときは micro-MD か CAN-Servo-v1 の待ち方にする | C-66 |
 | `firmware/CAN-Servo-v1` | サーボの設定の要求（`0x410`）に、共通の項目 0〜6 を含めて答えない | C-49、C-60、S-11 |
 | `firmware/CAN-Servo-v1` | サーボの先頭の ch と MD の先頭の ch を、2 つのビルドの値（`SERVO_FIRST_CH`、`MD_FIRST_CH`）で別々に決める。k で主な種類の先頭だけを決め、他の種類はファームの規則で計算する形ではない | C-81 |
 
-応答を送り終えてから再起動するのは micro-MD と CAN-Servo-v1 の 2 つ（どちらも最大 10 ms 待つ）。
+応答を送り終えてから再起動するのは micro-MD、CAN-Servo-v1、雛形（`examples/node_md_rp2040`）の 3 つ（どれも最大 10 ms 待つ）。
 
 ## 試し方
 
