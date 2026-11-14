@@ -1,11 +1,358 @@
 # 雛形から始める
 
-> **未執筆。** 下の枠に沿って書く。書き方は [writing.md](../../internal/writing.md)。書き終えたら、この引用の段を消す。
+> **下書き（2026-11-15）。** 中身は、雛形（`examples/node_md_rp2040`）のコードと、ライブラリの基板側（`lib/mas/include/mas/can/node.h`、`lib/mas/src/can/node.c`）と突き合わせました。ビルドと実機では確かめていません。
 
 | | |
 |---|---|
 | 読む人 | 基板のファームを作る部員 |
 | 前提 | 作る基板のマイコンで、PWM や ADC を動かすファームを書ける |
-| 読むとできること | 雛形を自分の基板に合わせ、主制御から動かせる |
-| 見せないもの | 主制御のライブラリの中身 |
-| 材料 | examples/node_md_rp2040、lib/mas/include/mas/can/node.h、spec/board.md（書き終えたら消す） |
+| 読むとできること | 雛形（`examples/node_md_rp2040`）を自分の基板に合わせ、主制御から動かせる |
+
+新しい基板のファームは、雛形を写して作り始めます。雛形は、RP2040 でモーター 1 個を回す、モータードライバー（MD）の基板のファームです。雛形がこなせる指令は duty だけです。電流と速度は測りません。
+
+雛形のファイルは 2 つです。[`platformio.ini`](../../../examples/node_md_rp2040/platformio.ini) がビルドの指定で、[`src/main.cpp`](../../../examples/node_md_rp2040/src/main.cpp) がファームの全部です。
+
+## 先に知っておくこと
+
+### ファームは 2 つの部分でできる
+
+基板のファームは、ライブラリの基板側と、あなたが書く部分の 2 つでできます。ライブラリの基板側を **node** と呼びます。node は C で書かれていて、ハードウェアには触りません。
+
+node が受け持つのは、決まりを守る所です。
+
+- **指令を受け取る。** 主制御から届いたフレームを読み、どの ch に何を出すかを決めます。
+- **途絶で止める。** 指令が 0.1 秒届かないと、node はその ch を止めます。主制御が止まったときに、モーターが回り続けないためです。
+- **緊急停止（E-stop）。** 主制御が緊急停止を送ると、node は止めたままにします。解除が来た後も、次の指令が来るまでは動きません。
+- **起動の猶予。** 起動を知らせてから 0.2 秒は、node は指令に従いません。主制御が、起動した基板に設定や緊急停止を送り直す時間を取るためです。
+- **設定に答える。** 主制御からの設定の読み書き、保存、再起動の求めに、node が答えます。
+- **FB を返す。** FB は、基板が主制御へ周期的に返す、状態と測った値です。node は、既定で 1 秒に 100 回 FB を組み立てます。
+
+あなたが書くのは、**ハードウェアに触る所**です。CAN の送受信、時計、フラッシュへの保存、再起動、モーターへの出力、測ること、の 6 つです。
+
+### メインのループで、ファームがすること
+
+雛形の冒頭のコメントは、メインのループでファームがすることを 4 つに分けています。
+
+1. 受けたフレームを `mas_can_node_on_frame` に渡す。
+2. `mas_can_node_tick` で時間を進める。
+3. `mas_can_md_output` で出すべき値を受け取り、ハードウェアに出す。
+4. `mas_can_node_peek_tx` と `mas_can_node_drop_tx` で、node が積んだフレームを送る。
+
+node は、「今、モーターに何を出すべきか」を返します。ファームは、その値を判断し直さずに、そのまま出します。途絶や緊急停止で止めるかどうかは、node がもう決めているからです。
+
+### node が受け持つのは MD だけ
+
+今の node が受け持つ種類は、モータードライバーだけです。サーボの基板では、指令の受け取り、途絶の判断、起動の知らせ、緊急停止、起動の猶予を、ファームが自分で書きます。実例は [`firmware/CAN-Servo-v1/src/main.cpp`](../../../firmware/CAN-Servo-v1/src/main.cpp) です。
+
+## 用意するもの
+
+| もの | 雛形での使い方 |
+|---|---|
+| RP2040 の基板 | `platformio.ini` は Raspberry Pi Pico（`board = pico`）を指定しています。CAN-Servo の基板（RP2040-Zero）も、同じ指定でビルドしています |
+| CAN のトランシーバ | マイコンの信号を、CAN の線の信号に変える部品です。トランシーバの TX 側を GPIO 0 に、RX 側を GPIO 1 につなぎます |
+| モーターのドライバ | 入力が 2 本のものです。2 本の入力を GPIO 10 と GPIO 11 につなぎます |
+| 主制御 | 動いたかを確かめるのに使います。ESP32 か Raspberry Pi Pico に、用意してある例を書き込みます |
+| PC | PlatformIO が入っているもの |
+
+雛形は、ドライバの 2 本の入力を両方 0 にすると空転、両方 1 にするとブレーキになる、と想定しています。この対応は、ドライバの品番で違います。使うドライバのデータシートで確かめてください。
+
+CAN の送受信は、ACAN2040 というライブラリ（中身は can2040）が、RP2040 の PIO の 1 番を使って行います。
+
+## 雛形を動かす
+
+1. **雛形のフォルダを写します。** `examples/node_md_rp2040` を丸ごと、`firmware/` の下に新しい名前で写します。`platformio.ini` の `lib_extra_dirs = ../../lib` は、2 段上の `lib` フォルダからライブラリを探します。`firmware/` の下も 2 段なので、この行を直さずに使えます。CAN-Servo のファームも同じ行です。
+2. **番号（ch）を決めます。** `platformio.ini` の `-D MD_CH=0` の 0 が ch です。決め方は下の「番号（ch）を決める」にあります。
+3. **ビルドします。** 写したフォルダで `pio run` を実行します。最後に `[SUCCESS]` と出れば成功です。初めてのビルドでは、PlatformIO が `platform` の行の取り込み先から、RP2040 用の道具を取ってきます。
+4. **書き込みます。** 同じフォルダで `pio run -t upload` を実行します。書き込んでも、基板の上では何も起きません。雛形には、LED もシリアルの表示も無いからです。
+5. **主制御から見ます。** 主制御に [`examples/md_scan`](../../../examples/md_scan/) を書き込み、シリアルモニタ（115200）を開きます。雛形のままなら、次の行が出ます。
+
+```
+MD  0  current:no  speed:no   stopped
+```
+
+`MD  0` の 0 は、手順 2 で決めた ch です。`current:no` と `speed:no` は、雛形が node に「電流も速度も測れない」と伝えているからです。`stopped` は、指令をまだ送っていないので止まっている、という意味です。
+
+ここまで出たら、モーターを回して確かめます。手順は [確かめ方](test.md) にあります。
+
+### 番号（ch）を決める
+
+雛形の ch は、ビルドのときに決まります。`platformio.ini` の `build_flags` で `MD_CH` を渡し、`main.cpp` がそれを使います。渡さないときは 0 です。雛形のこの部分です。
+
+```cpp
+#ifndef MD_CH
+#define MD_CH 0
+#endif
+```
+
+- **ch は 0〜31 から選びます。** MD の ch は 32 個です。
+- **雛形は、範囲の外の値を確かめていません。** 32 以上を書いても、雛形は FB を送ってしまいます。決まりでは、範囲の外の基板は何も送りません。ほかの基板の信号とぶつかるからです。
+- **同じ線の上で、ほかの基板と同じ ch にしないでください。** 重なりを見つける仕組みはありません。
+- **自分の基板で DIP スイッチから読むときは、電源を入れたときに 1 回だけ読みます。** 範囲の外のときの扱いも要ります。点検の項目は [守ること](rules.md#番号ch) にあります。
+
+## 雛形を読む
+
+`main.cpp` を上から、まとまりごとに読みます。各まとまりの最後に、自分の基板で変える所を書きます。
+
+### ピンと PWM の周期
+
+雛形のこの部分です。
+
+```cpp
+constexpr uint8_t kCanTx = 0, kCanRx = 1, kCanPio = 1;
+constexpr uint8_t kPinA = 10, kPinB = 11;               // モータードライバの 2 入力
+constexpr uint16_t kPwmTop = (uint16_t)(F_CPU / 20000UL - 1); // 約 20 kHz
+```
+
+- `kCanTx` と `kCanRx` は、トランシーバにつなぐピンです。`kCanPio` は、can2040 が使う PIO の番号です。
+- `kPinA` と `kPinB` は、モーターのドライバの 2 本の入力です。
+- `kPwmTop` は、PWM の 1 周期のカウント数です。式の `20000UL` が、周波数（Hz）です。
+
+**変える所:** ピンの番号は、基板の配線に合わせます。モーターの 2 本は、同じ PWM のスライスに載るピンにしてください。雛形は、`kPinA` のスライスにだけ周期を設定しているからです。RP2040 では、偶数の GPIO と、その次の GPIO が同じスライスです（10 と 11 は、どちらもスライス 5）。PWM の周波数は、ドライバが受け付ける範囲に合わせます。
+
+can2040 は、PIO の 1 番の 4 つのステートマシンを、予約せずに使います。PIO を使うほかのライブラリを足すと、そのライブラリが同じステートマシンを空きと見て使うことがあります。CAN-Servo のファームは、`reserveCanPio()` で先に予約しています。
+
+### CAN の受け取りと送り出し
+
+受信は割り込みで行い、受けたフレームを 32 本の輪に積みます。node に渡すのは、メインのループです。雛形のこの部分です。
+
+```cpp
+// ---- CAN: 受信は割り込みで積み、loop() で取り出す ----
+constexpr uint8_t kRxq = 32;
+mas_can_frame_t rxq[kRxq];
+volatile uint8_t rxHead, rxTail;
+
+void onCan(struct can2040*, uint32_t notify, struct can2040_msg* msg) {
+    if (notify != CAN2040_NOTIFY_RX || (msg->id & CAN2040_ID_EFF)) return;
+    if ((uint8_t)(rxHead - rxTail) >= kRxq) return;
+    mas_can_frame_t& f = rxq[rxHead % kRxq];
+    f.id = msg->id & 0x7FF;
+    f.rtr = (msg->id & CAN2040_ID_RTR) != 0;
+    f.dlc = msg->dlc > 8 ? 8 : msg->dlc;
+    for (int i = 0; i < 8; i++) f.data[i] = msg->data[i];
+    rxHead++;
+}
+```
+
+- **拡張 ID のフレームは積みません**（`CAN2040_ID_EFF` の行）。node に渡すフレーム（`mas_can_frame_t`）には、標準 ID と拡張 ID を区別する欄が無いからです。
+- **リモートフレームかどうかを、必ず `rtr` の欄に入れます。** 入れないと、node がリモートフレームを指令として受けてしまいます。
+- **輪が満ちているときは、新しく受けたフレームを捨てます。**
+
+送るほうは `canSend()` です。can2040 がフレームを受け付けられないとき、`canSend()` は false を返します。そのフレームは node の待ち行列に残り、次の周で送り直されます。
+
+**変える所:** RP2040 と can2040 を使うなら、ここは変えなくて構いません。ほかのマイコンでは、この 2 つの関数を書き直します（下の「RP2040 でないマイコン」）。
+
+### 設定の保存と再起動
+
+node は、主制御が保存を求めたときに `save` を、起動したときに `load` を、再起動を求めたときに `restart` を呼びます。この 3 つの関数を書くのは、ファームです。雛形のこの部分です。
+
+```cpp
+// ---- node に渡す関数: 保存した設定の読み書き、再起動 ----
+bool settingsLoad(void*, void* buf, size_t len) {
+    EEPROM.begin(sizeof(mas_can_node_saved_t));
+    memcpy(buf, EEPROM.getDataPtr(), len);
+    return true;
+}
+bool settingsSave(void*, const void* buf, size_t len) {
+    memcpy(EEPROM.getDataPtr(), buf, len);
+    return EEPROM.commit();
+}
+void restart(void*) { rp2040.reboot(); }
+```
+
+- **保存する中身は、node が組み立てます。** 中身は `mas_can_node_saved_t` の 172 byte です。ファームは中身を解釈せずに、そのまま書き、そのまま読みます。雛形は、Arduino の `EEPROM` を使って、RP2040 のフラッシュに置きます。
+- **`settingsLoad` は、いつも true を返します。** 何も書いていないフラッシュでも構いません。node が中身の印と CRC を確かめ、合わなければ焼いた値（ファームが持つ既定の値）で起動するからです。
+- **node が `restart` を呼ぶのは、再起動の返事を送る待ち行列が空になったときです。**
+
+雛形には、写す前に直すべき所が 2 つあります。
+
+- **書いている間、出力を止めていません。** RP2040 は、フラッシュを消して書いている間、割り込みもメインのループも止まります。その間は、途絶も緊急停止も見られません。CAN-Servo のファームは、書く前に全部の出力を Low にしています（`settingsSave`）。自分の基板でどうするかを決めて、基板の資料に書いてください。
+- **再起動で、返事が線に出るのを待っていません。** node が `restart` を呼んだ時点では、返事は can2040 に渡っただけで、線に出たとは限りません。すぐ再起動すると、返事が主制御に届かないことがあります。CAN-Servo のファームの `restart` は、送り終えの知らせを数えて、最大 10 ms 待ちます。自分の基板には、こちらを写してください。
+
+その下の `uniqueId()` は、基板ごとに違う番号（固有 ID）を作ります。RP2040 のフラッシュが持つ 64 bit の番号を、先頭の byte を上位にして並べます。RP2040 なら、変えなくて構いません。
+
+### モーターに出す
+
+`motorInit()` は、2 本の入力を両方 0 にしてから PWM を始めます。電源を入れた直後に、出力を止めておくためです。`motorApply()` は、node が返した値をピンに出し、実際に出した duty を返します。雛形のこの部分です。
+
+```cpp
+float motorApply(const mas_can_md_output_t& out) {
+    float d = out.mode == MAS_CAN_MD_OUT_DUTY ? out.value : 0.0f;
+    if (d > 1.0f) d = 1.0f;
+    if (d < -1.0f) d = -1.0f;
+    uint16_t on = (uint16_t)((d < 0 ? -d : d) * kPwmTop);
+    if (out.mode != MAS_CAN_MD_OUT_DUTY && out.brake) { // 止める: ブレーキ
+        pwm_set_gpio_level(kPinA, kPwmTop + 1);
+        pwm_set_gpio_level(kPinB, kPwmTop + 1);
+    } else {
+        pwm_set_gpio_level(kPinA, d > 0 ? on : 0);
+        pwm_set_gpio_level(kPinB, d < 0 ? on : 0);
+    }
+    return d;
+}
+```
+
+node が返す `mas_can_md_output_t` の `mode` ごとに、雛形は次のように出します。
+
+| `mode` | 雛形が出すもの |
+|---|---|
+| `MAS_CAN_MD_OUT_DUTY` | `value`（−1.0〜+1.0）の大きさで、片方の入力に PWM を出します。正なら `kPinA`、負なら `kPinB` です |
+| `MAS_CAN_MD_OUT_STOP` | `brake` が true なら両方 1（ブレーキ）、false なら両方 0（空転）です |
+| `MAS_CAN_MD_OUT_CURRENT`、`MAS_CAN_MD_OUT_SPEED` | 雛形には来ません。雛形は電流も速度も測れないと node に伝えているので、node がこの 2 つの指令を「止める」に変えます |
+
+雛形が見ていない欄が 2 つあります。
+
+- **duty のときの `brake` を見ていません。** この `brake` は、PWM を切っている間をブレーキにするか、を表します。雛形は、いつも空転で出します。主制御が「duty 0 でブレーキ」（短絡ブレーキを求める形）を送っても、雛形は空転になります。
+- **`reset_ctrl` を見ていません。** 雛形は、制御の状態（積分の値）を持たないからです。電流や速度を制御する基板では、`reset_ctrl` が立ったら制御の状態を消します。
+
+**変える所:** `motorApply()` は、ドライバの入力の表に合わせて書き直します。回る向きが逆なら、`kPinA` と `kPinB` を入れ替えます。値の意味の詳細は、仕様書の [出力](../../spec/board.md#出力mas_can_md_output_t) にあります。
+
+### 起動の順（setup）
+
+`setup()` は、出力を止め、node に基板の性質を渡し、CAN を始め、最後に起動を知らせます。雛形のこの部分です。
+
+```cpp
+void setup() {
+    motorInit();
+
+    mas_can_node_config_t cfg = {};
+    cfg.uid = uniqueId();
+    cfg.board_type = MAS_CAN_BOARD_TYPE(MAS_CAN_BOARD_RESERVED, 1); // 実際の基板は core/board.h に番号を足す
+    cfg.fw_version = 0x00000100u;       // 0.1.0
+    cfg.md_first_ch = MD_CH;
+    cfg.md_count = 1;
+    cfg.md_has_current = false; // 測れない量は false（FB の bit で知らせる）
+    cfg.md_has_speed = false;
+    cfg.md_has_coast = true;
+    cfg.md_fb_rate_max_hz = 200;
+    cfg.load = settingsLoad;
+    cfg.save = settingsSave;
+    cfg.restart = restart;
+    mas_can_node_init(&node, &cfg, micros());
+
+    can.begin();
+    mas_can_node_ready(&node, micros()); // 起動の知らせ。ここから 200 ms は指令に従わない（C-89）
+}
+```
+
+順番には理由があります。
+
+1. **`motorInit()`** で、まず出力を止めます。
+2. **`mas_can_node_init()`** に、基板の性質（`cfg`）を渡します。node はこの中で `load` を呼び、保存した設定を読みます。
+3. **`can.begin()`** で、CAN を始めます。
+4. **`mas_can_node_ready()`** で、主制御に「起動した」と知らせます。ここから node は FB を送り始め、0.2 秒の起動の猶予を数えます。
+
+`mas_can_node_ready()` は、準備が全部済んでから呼んでください。早く呼ぶと、準備ができていないのに主制御が話しかけてきます。時刻は、どの関数にも `micros()`（µs）で渡します。
+
+### node に渡す性質（mas_can_node_config_t）
+
+`cfg = {}` で、全部の欄を 0 にしてから埋めています。雛形が入れている欄は次のとおりです。
+
+| 欄 | 雛形の値 | 意味 |
+|---|---|---|
+| `uid` | `uniqueId()` | 基板ごとに違う番号（固有 ID） |
+| `board_type` | `MAS_CAN_BOARD_TYPE(MAS_CAN_BOARD_RESERVED, 1)` | 基板の種類の番号と、基板の版（1 から） |
+| `fw_version` | `0x00000100u` | ファームの版。上から `0x00`、大、中、小の順で、これは 0.1.0 |
+| `md_first_ch` | `MD_CH` | 受け持つ MD の先頭の ch |
+| `md_count` | `1` | 受け持つ MD の数。最大 4 |
+| `md_has_current` | `false` | 電流を測れるか |
+| `md_has_speed` | `false` | 速度と位置を測れるか |
+| `md_has_coast` | `true` | 空転を出せるか |
+| `md_fb_rate_max_hz` | `200` | 主制御が FB の周期を設定するときの上限（Hz） |
+| `load`、`save` | `settingsLoad`、`settingsSave` | 保存した設定の読み書き |
+| `restart` | `restart` | 再起動 |
+
+雛形が入れていない欄は、0 のままです。
+
+- **`md_no_duty` が 0 なので、duty を出せる基板として扱われます。**
+- **`md_current_limit_max_ma` と `md_current_limit_default_ma` が 0 です。** そのため、電流の上限（主制御が設定で読み書きする値）は、いつも 0 になります。電流を測れない基板でこの上限をどう扱うかは、まだ決まっていません。電流を測る基板では、部品の限界を入れます。
+- **`md_encoder_cpr_default` が 0 です。** エンコーダの 1 回転のカウント数の既定の値で、0 なら node は 1 にします。
+- **`ctx` が 0 です。** node は、`load`、`save`、`restart` の最初の引数に NULL を渡します。
+
+`md_fb_rate_max_hz` は、100 以上にしてください。主制御が書いた FB の周期は、この上限で抑えられます。0 のままだと、主制御が FB の周期を書いた時点で 0 に抑えられ、FB が止まります。各欄の詳しい意味は、仕様書の [mas_can_node_config_t の欄](../../spec/board.md#mas_can_node_config_t-の欄) にあります。
+
+### メインのループ（loop）
+
+`loop()` は、冒頭のコメントの 4 つを、番号の順に行います。雛形のこの部分です。
+
+```cpp
+void loop() {
+    uint32_t now = micros();
+    while (rxTail != rxHead) mas_can_node_on_frame(&node, &rxq[rxTail++ % kRxq], now); // 1
+    mas_can_node_tick(&node, now);                                                    // 2
+
+    mas_can_md_measure_t m = {}; // 3
+    m.duty = motorApply(mas_can_md_output(&node, 0));
+    mas_can_md_set_measure(&node, 0, &m);
+
+    const mas_can_frame_t* f; // 4
+    while ((f = mas_can_node_peek_tx(&node)) && canSend(f)) mas_can_node_drop_tx(&node);
+}
+```
+
+1. **受ける。** 割り込みが輪に積んだフレームを、全部 node に渡します。
+2. **時間を進める。** node は、途絶を判断し、FB を送る時刻が来ていれば FB を積みます。
+3. **出して、測った値を渡す。** `mas_can_md_output(&node, 0)` の 0 は、基板の中のモーターの番号（0 から）です。返ってきた値を `motorApply()` で出し、実際に出した duty を `mas_can_md_set_measure()` で node に渡します。渡した値は、次の FB に載ります。
+4. **送る。** node が積んだフレームを、送れるだけ送ります。送れたものだけ、`mas_can_node_drop_tx()` で消します。再起動は、この中で待ち行列が空になったときに起きます。
+
+`mas_can_md_output()` は、1 周に 1 回だけ呼んでください。`reset_ctrl` は、読むと消えるからです。
+
+`loop()` の中で、長く待たないでください。node は、途絶（0.1 秒）と FB の周期（既定で 0.01 秒）を、`mas_can_node_tick()` を呼んだ時刻で数えます。緊急停止で止まるのも、次の `mas_can_md_output()` からです。ループが遅いと、止まるのも FB もその分だけ遅れます。
+
+### 測った値を渡す
+
+雛形が node に渡すのは、実際に出している duty だけです。電流や速度を測れる基板は、`mas_can_md_measure_t` のほかの欄も埋めます。
+
+| 欄 | 中身 |
+|---|---|
+| `duty` | 実際に出している duty（−1.0〜+1.0）。どの基板も、いつも渡します |
+| `current_ma` | 電流（mA）。`md_has_current` が true のときだけ |
+| `speed_rpm` | 出力軸の速度（rpm）。`md_has_speed` が true のときだけ |
+| `position` | 出力軸の位置。1 回転を 65536 として数えます |
+| `current_limited` | 電流の上限に当たっているか |
+| `protecting` | 基板を守るために止めているか |
+
+値の向きと換算の決まりは、仕様書の [測った値](../../spec/board.md#測った値mas_can_md_measure_t) にあります。
+
+## 自分の基板に合わせて変える所
+
+| 変える所 | 雛形 | 変え方 |
+|---|---|---|
+| CAN のピン | `kCanTx = 0`、`kCanRx = 1`、`kCanPio = 1` | 基板の配線に合わせます |
+| モーターのピン | `kPinA = 10`、`kPinB = 11` | 同じ PWM のスライスに載る 2 本にします |
+| PWM の周波数 | 約 20 kHz（`kPwmTop` の `20000UL`） | ドライバが受け付ける範囲にします |
+| 出し方 | `motorApply()` | ドライバの入力の表に合わせて書き直します。duty のときの `brake` も扱います |
+| 番号（ch） | ビルドで渡す（`-D MD_CH=0`） | DIP スイッチで決めるなら、起動時に 1 回読み、範囲を確かめてから `md_first_ch` に入れます |
+| 受け持つモーターの数 | `md_count = 1` | 最大 4 です。`loop()` の 3 を、モーターの番号ごとに回します。4 個の実例は CAN-Servo のファームの `motorUpdate()` です |
+| こなせる指令 | `md_has_current = false`、`md_has_speed = false`、`md_has_coast = true` | 測れるものを true にします。true にしたら、`motorApply()` で `MAS_CAN_MD_OUT_CURRENT` や `MAS_CAN_MD_OUT_SPEED` を出し、`reset_ctrl` を扱います。空転を出せないなら `md_has_coast` を false にします |
+| 電流の上限 | 入れていない（0） | 電流を測る基板は、`md_current_limit_max_ma` と `md_current_limit_default_ma` に部品の限界を入れます |
+| 基板の種類の番号 | `MAS_CAN_BOARD_RESERVED`、版 1 | 番号は一覧に書き足して取るので、作者に頼みます。取るまでは、このままにします |
+| ファームの版 | `0x00000100u`（0.1.0） | ファームを直したら上げます |
+| 保存の間の出力 | 何もしない | 書く前に出力を止めます。CAN-Servo のファームの `settingsSave()` が例です |
+| 再起動 | すぐ再起動する | 返事を送り終えるのを待ちます。CAN-Servo のファームの `restart()` が例です |
+
+基板の種類の番号の取り方は、仕様書の [基板の情報](../../spec/board.md#基板の情報設定の共通の項目) の「登録の手順」にあります。
+
+## 次にすること
+
+- **動いたかを確かめる。** 手順は [確かめ方](test.md) にあります。雛形は電流を測れないので、電流の指令（`i 0.5`）では回らずに止まるのが、正しい動きです。
+- **守ることを点検する。** 自分のファームが決まりを満たしているかは、[守ること](rules.md) の点検表で確かめます。
+- **基板の資料を書く。** 基板のフォルダの README に書くことは、[守ること](rules.md#基板の資料に書くこと) の最後にあります。
+- **node の使い方を詳しく知る。** 関数ごとの呼ぶ時期と、呼ぶ順の決まりは、仕様書の [node を使う](../../spec/board.md#node-を使う) にあります。
+
+## RP2040 でないマイコン
+
+RP2040 でないマイコンへの組み込み方は、[マイコンごとの部品](ports.md) に書く予定です（まだ書いていません）。今は、次の 2 つのファームが実例です。
+
+- **STM32（STM32F042）:** [`firmware/CAN_MD`](../../../firmware/CAN_MD/)。ハードウェアに触る所は `App/app.c` にあり、`CMakeLists.txt` で node をビルドに足しています。
+- **CH32（CH32V203）:** [`firmware/micro-MD`](../../../firmware/micro-MD/)。`mas_node.py` で、node だけを PlatformIO のビルドに足しています。
+
+ビルドに足すファイルの一覧は、仕様書の [ビルドへの組み込み](../../spec/board.md#ビルドへの組み込み) にあります。
+
+## このページにまだ書いていないこと
+
+- **初めて書き込むときの、RP2040 の側の操作。** リポジトリの中に、確かめられる記録がありません。
+- **PWM の正確な周波数。** `kPwmTop` は `F_CPU` から計算しますが、この環境での `F_CPU` の値を確かめていません。
+- **番号を DIP スイッチで読む書き方。** 雛形はビルドで番号を決めるので、例がありません。STM32 での例は、`firmware/CAN_MD/App/app.c` の `read_dip()` です。
+- **電流や速度を測って制御する書き方。** 電流の例は、`firmware/CAN_MD` と `firmware/micro-MD` です。
+- **基板が見つけた異常（過電流、過熱）を node に知らせる書き方。** 雛形にはありません。使う関数は `mas_can_node_raise_fault()` です（[守ること](rules.md#異常)）。
+- **トランシーバの品番と、配線の図。**
