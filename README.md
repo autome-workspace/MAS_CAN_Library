@@ -105,7 +105,7 @@ void setup() {
 | 場所 | 中身 |
 |---|---|
 | [`lib/mas/`](lib/mas/) | ライブラリ。主制御の側（ESP32、RP2040）と、基板の側 |
-| [`examples/`](examples/) | 例。最初は `md_minimal` と `servo_minimal`。線の上の基板を一覧にする `md_scan`、シリアルから試す `md_serial_test`、基板の側の雛形 `node_md_rp2040` |
+| [`examples/`](examples/) | 例。最初は、回すだけの `md_minimal`。回らないときは、理由を表示する `md_check`。ほかに、サーボの `servo_minimal`、シリアルから試す `md_serial_test`、基板の側の雛形 `node_md_rp2040` |
 | [`firmware/`](firmware/) | 基板のファーム。基板ごとに 1 フォルダで、使い方はそれぞれの README |
 | [`docs/`](docs/) | 文書。地図は [docs/README.md](docs/README.md) |
 
