@@ -41,6 +41,50 @@ MD  1  current:yes speed:no   running
 - **サーボの基板は出ません。** サーボの基板は返事をしないためです。
 - **duty をこなせるかは出ません。** XDrive の中継機は duty をこなせませんが、一覧からは分かりません。
 
+## プログラムから、原因を絞る
+
+ライブラリには、様子を読む関数がそろっています。**上から順に見ていくと、原因が絞れます。** `motor` はモーターの取っ手、`can` は `Host` です。
+
+| 順 | 見るもの | こうなら | 考えられること |
+|---|---|---|---|
+| 1 | `can.error()` | `Error::None` でない | 主制御の側の問題です。`mcan::toString(can.error())` で文字にできます。線の開始に失敗した、指令の種類が混ざった、線が混みすぎた、などです |
+| 2 | `motor.online()` | `false` | 基板の声が届いていません。下の「`offline` のまま」を見ます |
+| 3 | `can.estopped()`、`motor.estopLatched()` | `true` | 緊急停止がかかっています |
+| 4 | `motor.ready()` | `false` のまま | 基板との打ち合わせが終わっていません。この間、ライブラリは「止まれ」を送ります。`can.onSettingError(関数)` で、何を断られたかが分かります |
+| 5 | `motor.commandConflict()` | `true` | 同じ 4 個の組で、指令の種類が混ざっています |
+| 6 | `motor.hasFault()` | `true` | 基板が異常を知らせています。中身は `motor.faultDetail()` です |
+| 7 | `motor.stopped()` | `true` | 基板が止めています。1〜6 に当てはまらなければ、まだ値を置いていないか、その基板にできない指令を送っているか、指令が 0.1 秒以上途切れています |
+| 8 | `motor.feedback().currentLimited()` | `true` | 電流が上限に当たっています。力が足りないときに見ます |
+| 9 | ここまで全部ふつう | | 指令は届き、基板は従っています。値が小さすぎないか、機構が引っかかっていないかを見ます |
+
+7 で「できない指令」かどうかは、`motor.feedback().currentValid()` と `speedValid()` で分かります（`ready()` が `true` になってから見ます）。`currentValid()` が `false` の基板は、電流の指令をこなせません。`speedValid()` が `false` の基板は、速さの指令をこなせません。
+
+線そのものの様子も読めます。
+
+| 見るもの | 意味 |
+|---|---|
+| `can.rxOverflows()` | 受け取りきれずに捨てた数です。増えていくなら、`update()` を呼ぶ間隔が長いか、線が混んでいます |
+| `can.busLoad()` | 線の混み具合です。0〜1 で、直近 1 秒の目安です |
+
+これらを 1 行にまとめて表示する書き方が、[`examples/md_serial_test`](../../../examples/md_serial_test/src/main.cpp) にあります。自分のプログラムに写して使えます。
+
+```cpp
+const auto &fb = md.feedback();
+Serial.printf("[%d] %s%s %6.3f A duty %+.2f%s%s%s%s fault 0x%lx\n", md.ch(),
+              fb.online ? "on" : "--", md.ready() ? "" : "(wait)", fb.current, fb.duty,
+              fb.stopped() ? " stop" : "", fb.estopLatched() ? " estop" : "",
+              fb.hasFault() ? " FAULT" : "", can.estopped() ? " [E]" : "",
+              (unsigned long)md.faultDetail());
+```
+
+**今のライブラリでは、読めないものもあります。** 次のものは、プログラムからは分かりません。
+
+- 基板が止めている理由そのもの。指令の途切れなのか、できない指令なのか、起動の直後なのかは、`stopped()` だけでは区別できません。上の表のように、ほかの値から絞ります。
+- 基板の種類と、ファームの版。
+- 基板が覚えている設定の値（回転の向き、電流の上限など）。
+- サーボの基板の様子。サーボの基板は返事をしません。
+- 過去に起きたこと。`can.error()` が覚えているのは、最後の 1 つだけです。
+
 ## `offline` のまま、`MD not ready` と出る、スキャナに出ない
 
 基板の声が、主制御に届いていません。次の順に確かめます。
