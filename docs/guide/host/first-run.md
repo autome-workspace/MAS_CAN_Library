@@ -64,7 +64,7 @@ build_flags = -D CAN_TX=5 -D CAN_RX=4
 
 `lib_deps` の行が、MAS CAN のライブラリを取り込む指定です。`build_flags` の行は、手順 1 でつないだピンの番号です。別のピンにつないだなら、ここを変えます。
 
-ESP32-S3 と Pico の書き方は、[`examples/md_minimal/platformio.ini`](../../../examples/md_minimal/platformio.ini) にあります。Pico は、取り込むライブラリが 1 つ増えます。
+ESP32-S3 は、`board` の行を `esp32-s3-devkitc-1` に変えます。Pico の書き方は、リポジトリの [README](../../../README.md) にあります。Pico は、取り込むライブラリが 1 つ増えます。
 
 ## 4. プログラムを書く
 
@@ -135,7 +135,7 @@ offline duty +0.00
 
 サーボは、CAN-Servo の基板の J2 の端子につなぎます。ch を変えていない基板では、J2 がサーボの 0 番です。
 
-プログラムは [`examples/servo_minimal`](../../../examples/servo_minimal/src/main.cpp) を使います。モーターのときと違うのは次の 2 行です。
+プログラムは [`examples/servo_minimal`](../../../examples/servo_minimal/src/main.cpp) を使います。要になるのは次の 2 行です。
 
 ```cpp
 mcan::Servo arm = can.servo(0); // ch 0 のサーボ
