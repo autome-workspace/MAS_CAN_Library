@@ -11,7 +11,7 @@ v0（`MotorCAN`）とは互換が無い。v0 はタグ [`v0`](../../tree/v0)。
 | [`lib/mas/`](lib/mas/) | ライブラリ（主制御 ESP32 / RP2040、基板側のコア） |
 | [`firmware/`](firmware/) | 基板のファーム。基板ごとに 1 フォルダで、使い方と制約はその README |
 | [`examples/`](examples/) | 例。まずは `md_minimal`、`servo_minimal` |
-| [`docs/decisions/`](docs/decisions/) | 仕様の正本 |
+| [`docs/internal/decisions/`](docs/internal/decisions/) | 仕様の正本 |
 
 ## 使い方
 
@@ -91,10 +91,10 @@ void setup() {
 | `can.servo(ch)` | `setAngle`、`setPulseUs`、`release`、`configCalibration` |
 | `can.onFault(fn)` | 基板の異常 |
 
-全体は [`docs/decisions/api.md`](docs/decisions/api.md)。
+全体は [`docs/internal/decisions/api.md`](docs/internal/decisions/api.md)。
 
 ## 開発
 
 - テスト: `make -C lib/mas/test`
-- 版とブランチ: [`docs/versioning.md`](docs/versioning.md)
-- 未決: [`docs/decisions/open.md`](docs/decisions/open.md)
+- 版とブランチ: [`docs/internal/versioning.md`](docs/internal/versioning.md)
+- 未決: [`docs/internal/decisions/open.md`](docs/internal/decisions/open.md)

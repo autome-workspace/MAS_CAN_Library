@@ -21,13 +21,13 @@ ROOT = Path(__file__).resolve().parent.parent
 SPEC = ROOT / "docs/spec"
 STAMP = SPEC / "reviewed.txt"
 UNCITED = SPEC / "uncited.md"
-LEDGER = ROOT / "docs/decisions"
+LEDGER = ROOT / "docs/internal/decisions"
 
 # 仕様書が全部を扱う台帳
-COVER = ["docs/decisions/common.md", "docs/decisions/md.md", "docs/decisions/servo.md"]
+COVER = ["docs/internal/decisions/common.md", "docs/internal/decisions/md.md", "docs/internal/decisions/servo.md"]
 # 変わったら仕様書を点検し直す元
 WATCH = COVER + [
-    "docs/decisions/api.md",
+    "docs/internal/decisions/api.md",
     "lib/mas/include/mas/can/node.h",
     "lib/mas/src/can/node.c",  # flows.md、board.md が「今の実装」を書く
     "lib/mas/src/can/host.cpp",

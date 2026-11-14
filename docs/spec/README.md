@@ -33,11 +33,11 @@ intro.md は入門で、基本だけを話し言葉で書き、台帳の番号�
 
 ## この仕様書と台帳
 
-決定の正本は [`docs/decisions/`](../decisions/)（作者の台帳）にある。この仕様書は台帳から作った読む用の文書で、各記述に台帳の番号（`C-46` など）を添えてある。食い違いを見つけたら台帳が正しいので、作者に知らせてほしい。
+決定の正本は [`docs/internal/decisions/`](../internal/decisions/)（作者の台帳）にある。この仕様書は台帳から作った読む用の文書で、各記述に台帳の番号（`C-46` など）を添えてある。食い違いを見つけたら台帳が正しいので、作者に知らせてほしい。
 
 ## 保守（リポジトリを直す人へ）
 
-台帳（`docs/decisions/` の common.md、md.md、servo.md、api.md）、`lib/mas` の core のヘッダ、`node.h`、`node.c`、`host.cpp` を変えたら、この仕様書を点検する（仕様書が「今の実装」を書いているため）。点検は [`tools/spec_check.py`](../../tools/spec_check.py) が手伝う。
+台帳（`docs/internal/decisions/` の common.md、md.md、servo.md、api.md）、`lib/mas` の core のヘッダ、`node.h`、`node.c`、`host.cpp` を変えたら、この仕様書を点検する（仕様書が「今の実装」を書いているため）。点検は [`tools/spec_check.py`](../../tools/spec_check.py) が手伝う。
 
 ```sh
 python3 tools/spec_check.py          # 点検が要るところを出す

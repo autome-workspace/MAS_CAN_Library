@@ -2,7 +2,7 @@
 # Claude Code の PostToolUse フック。台帳や core のヘッダを変えたら、docs/spec の点検を促す。止めはしない。
 f=$(jq -r '.tool_input.file_path // empty')
 case "$f" in
-*/docs/decisions/*.md | */lib/mas/include/mas/can/node.h | */lib/mas/include/mas/can/core/* | \
+*/docs/internal/decisions/*.md | */lib/mas/include/mas/can/node.h | */lib/mas/include/mas/can/core/* | \
     */lib/mas/src/can/node.c | */lib/mas/src/can/host.cpp) ;;
 *) exit 0 ;;
 esac

@@ -4,7 +4,7 @@
 //   mas::can::Host can;
 //   mas::can::Md wheel = can.md(0);
 //
-// API の正典は docs/decisions/api.md。
+// API の正典は docs/internal/decisions/api.md。
 #pragma once
 
 #include "can/host.h"

@@ -216,7 +216,7 @@ byte 1 ＝ 操作 × `0x40`＋結果。操作 ＝ byte 1 >> 6（上の 2 bit）�
 | `0x0002` | CAN-Servo 基板（RP2040-Zero、サーボ 8 ＋ MD duty 4） | `MAS_CAN_BOARD_CAN_SERVO` |
 | `0x0003` | micro-MD 基板（CH32V203K8T6、DRV8701P、MD 1 ch） | `MAS_CAN_BOARD_MICRO_MD` |
 
-- 新しい基板の種類は、台帳（`docs/decisions/common.md`）の一覧に書き足して番号を取る（C-63）。`core/board.h` も同じにする（C-93）。
+- 新しい基板の種類は、台帳（`docs/internal/decisions/common.md`）の一覧に書き足して番号を取る（C-63）。`core/board.h` も同じにする（C-93）。
 - 例: micro-MD 基板の版 1 は `0x00030001`（byte 3–6 ＝ `00 03 00 01`）。`core/board.h` では `MAS_CAN_BOARD_TYPE(MAS_CAN_BOARD_MICRO_MD, 1)`。
 
 ### 項目 2: ファームの版

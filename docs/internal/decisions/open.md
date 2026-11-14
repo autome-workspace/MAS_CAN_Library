@@ -38,7 +38,7 @@
 
 ## 他の種類と API
 
-- 他の種類の未決（Q27〜Q31、Q37 など）は、reserved.md を作るときにここへ移す。それまでは `docs/redesign/spec-draft.md` の確認事項 D。
+- 他の種類の未決（Q27〜Q31、Q37 など）は、reserved.md を作るときにここへ移す。それまでは `docs/internal/archive/redesign/spec-draft.md` の確認事項 D。
 - API の保留（2026-10-15 に api.md を作った。`waitReady`、刻みの既定値、`stop`／`commandConflict`／`onSettingError`、A11 は決めた）: A10（`setSyncSource`。SYNC の送り手が 2 台になる穴と同じ）、loop の中の確保の失敗の細部（`error()` の `OutOfMemory` で知らせる方向。API-38）、汎用ピン、エアー、ソレノイドの未決（ソレノイドの `pulse(ms)` をどちらが計るか、`read()` の閾値、汎用出力と汎用入力の設定の種類をまとめるか）、保存の API（A5、API-59）。
 - `can.error()`（API-47）がいくつの異常を、いつまで持つか。最後の 1 つだけか、履歴を持つか、読んだら消えるか（2026-10-15、ユーザ: 検討の余地あり）。
 - 実装（2026-10-15、Claude）で台帳に無いまま仮に決めたもの。確かめて台帳に書くか、直す:

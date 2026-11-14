@@ -1,17 +1,17 @@
 # MAS CAN Library
 
-MAS CAN プロトコル v1 の再設計と、そのライブラリ・ファーム。**決定の正本は `docs/decisions/` の台帳**（書き方はその README）。`docs/redesign/` は 2026-10-14 までの記録で凍結。版とブランチの方針は `docs/versioning.md`。
+MAS CAN プロトコル v1 の再設計と、そのライブラリ・ファーム。**決定の正本は `docs/internal/decisions/` の台帳**（書き方はその README）。`docs/internal/archive/redesign/` は 2026-10-14 までの記録で凍結。版とブランチの方針は `docs/internal/versioning.md`。
 
-- 決定は台帳にだけ書く。検討は `docs/notes/` に日付付きで書き、書いた後は直さない。未決は `docs/decisions/open.md`。
-- 台帳と `docs/notes/`、`docs/redesign/` は作者の私用。外部の人が読むのは `docs/spec/`（台帳から作った仕様書、2026-11-14〜）。**台帳、`lib/mas` の core のヘッダ、`node.h`、`node.c`、`host.cpp` を変えたら、同じコミットで `docs/spec/` を点検して直し、`python3 tools/spec_check.py --stamp` で記録する。** 引かない決定は `docs/spec/uncited.md` に理由を書く。仕組みは `docs/spec/README.md` の「保守」。
+- 決定は台帳にだけ書く。検討は `docs/internal/notes/` に日付付きで書き、書いた後は直さない。未決は `docs/internal/decisions/open.md`。
+- 台帳と `docs/internal/notes/`、`docs/internal/archive/redesign/` は作者の私用。外部の人が読むのは `docs/spec/`（台帳から作った仕様書、2026-11-14〜）。**台帳、`lib/mas` の core のヘッダ、`node.h`、`node.c`、`host.cpp` を変えたら、同じコミットで `docs/spec/` を点検して直し、`python3 tools/spec_check.py --stamp` で記録する。** 引かない決定は `docs/spec/uncited.md` に理由を書く。仕組みは `docs/spec/README.md` の「保守」。
 - ユーザは `docs/spec/` をスマホの artifact で読む（2026-11-14、ユーザ）。`docs/spec/` を直したら `python3 tools/spec_page.py <scratchpad>/mas-can-spec.html` で作り直し、同じ artifact に出し直す（中身を手で写さない）。
 
 ## 主制御側のライブラリ
 
-`lib/mas` の主制御側（`Host`、`Device` と取っ手、`Port`、`Esp32Twai` など）は、~~ユーザが自分で空から書き直す（2026-10-14〜）~~ → **2026-10-15 から Claude が実装する**（ユーザ: 自分で実装するとも言っていられなくなった）。決定は台帳（`docs/decisions/api.md`）に従い、台帳に無いことは決めずにユーザに聞く。書いたものは PC のテストで確かめる。
-- 目標は `examples/api_tour/src/main.cpp` がビルドできること。**API の正典は `docs/decisions/api.md`**（2026-10-14、ユーザ）。順番は台帳 → ヘッダ → 見本。
+`lib/mas` の主制御側（`Host`、`Device` と取っ手、`Port`、`Esp32Twai` など）は、~~ユーザが自分で空から書き直す（2026-10-14〜）~~ → **2026-10-15 から Claude が実装する**（ユーザ: 自分で実装するとも言っていられなくなった）。決定は台帳（`docs/internal/decisions/api.md`）に従い、台帳に無いことは決めずにユーザに聞く。書いたものは PC のテストで確かめる。
+- 目標は `examples/api_tour/src/main.cpp` がビルドできること。**API の正典は `docs/internal/decisions/api.md`**（2026-10-14、ユーザ）。順番は台帳 → ヘッダ → 見本。
 - `api_tour` の役目（2026-10-15、ユーザ）: (1) 決定済みの API を一通り呼び、ビルドが通ればヘッダが台帳と食い違っていないと分かる道具。(2) 使い心地を試す場所（見本にしか無いものは「試し」で、台帳に書いて決定になる）。部員に教える例にはしない（密度が高い。教える例は必要になったら小さく分けて作る）。
-- 2026-10-14 までの経緯は `docs/redesign/library-api-draft.md`（凍結）。API の決定は `docs/decisions/api.md` に書き、残りの保留は `docs/decisions/open.md` にある。
+- 2026-10-14 までの経緯は `docs/internal/archive/redesign/library-api-draft.md`（凍結）。API の決定は `docs/internal/decisions/api.md` に書き、残りの保留は `docs/internal/decisions/open.md` にある。
 
 ## 作業場
 
