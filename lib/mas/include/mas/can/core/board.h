@@ -6,7 +6,7 @@
 
 /* 基板の種類（C-63、C-92、C-96）。番号はここに書き足して取る（台帳の一覧と同じにする） */
 #define MAS_CAN_BOARD_RESERVED 0x0000u  /* 予約（雛形はこれのまま） */
-#define MAS_CAN_BOARD_MD_2CH 0x0001u    /* 新しい MD の基板（STM32F042、1 ch） */
+#define MAS_CAN_BOARD_CAN_MD 0x0001u    /* CAN_MD 基板（STM32F042、MD 1 ch。C-97） */
 #define MAS_CAN_BOARD_CAN_SERVO 0x0002u /* CAN-Servo 基板（RP2040-Zero、サーボ 8 ＋ MD 4） */
 #define MAS_CAN_BOARD_MICRO_MD 0x0003u  /* micro-MD 基板（CH32V203、1 ch） */
 

@@ -207,12 +207,12 @@ byte 1 ＝ 操作 × `0x40`＋結果。操作 ＝ byte 1 >> 6（上の 2 bit）�
 
 上位 16 bit ＝ 基板の種類、下位 16 bit ＝ 基板の版（1 から数える）（C-63）。
 
-基板の種類の一覧（C-63、C-92、C-96）。`lib/mas` の `core/board.h` にも同じ一覧がある（C-93）。
+基板の種類の一覧（C-63、C-92、C-96、C-97）。`lib/mas` の `core/board.h` にも同じ一覧がある（C-93）。
 
 | 基板の種類 | 基板 | `core/board.h` |
 |---|---|---|
 | `0x0000` | 予約 | `MAS_CAN_BOARD_RESERVED` |
-| `0x0001` | 新しい MD の基板 | `MAS_CAN_BOARD_MD_2CH` |
+| `0x0001` | CAN_MD 基板（STM32F042、MD 1 ch。C-97） | `MAS_CAN_BOARD_CAN_MD` |
 | `0x0002` | CAN-Servo 基板（RP2040-Zero、サーボ 8 ＋ MD duty 4） | `MAS_CAN_BOARD_CAN_SERVO` |
 | `0x0003` | micro-MD 基板（CH32V203K8T6、DRV8701P、MD 1 ch） | `MAS_CAN_BOARD_MICRO_MD` |
 

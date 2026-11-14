@@ -338,7 +338,7 @@ void app_init(void) {
     mas_can_node_config_t cfg;
     memset(&cfg, 0, sizeof(cfg));
     cfg.uid = unique_id();
-    cfg.board_type = MAS_CAN_BOARD_TYPE(MAS_CAN_BOARD_MD_2CH, 1);
+    cfg.board_type = MAS_CAN_BOARD_TYPE(MAS_CAN_BOARD_CAN_MD, 1);
     cfg.fw_version = 0x00000100u;       /* 0.1.0 */
     cfg.md_first_ch = (uint8_t)(read_dip() + CAN_MD_FIRST_CH);
     cfg.md_count = 1;

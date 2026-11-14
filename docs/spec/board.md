@@ -76,7 +76,7 @@ node はフレームと時刻を受け取り、送るフレームと「モータ
 
 **基板の種類の登録の手順**
 
-1. 番号を一覧に書き足して取る（C-63）。一覧は台帳と `lib/mas/include/mas/can/core/board.h` の両方にあり、同じにする（C-93）。今の一覧は `0x0000` 予約、`0x0001` 新しい MD の基板、`0x0002` CAN-Servo 基板、`0x0003` micro-MD 基板（C-63、C-92、C-96）。
+1. 番号を一覧に書き足して取る（C-63）。一覧は台帳と `lib/mas/include/mas/can/core/board.h` の両方にあり、同じにする（C-93）。今の一覧は `0x0000` 予約、`0x0001` CAN_MD 基板（C-97）、`0x0002` CAN-Servo 基板、`0x0003` micro-MD 基板（C-63、C-92、C-96）。
 2. `core/board.h` に `#define MAS_CAN_BOARD_xxx 0x000Nu` を足す。
 3. ファームで `cfg.board_type = MAS_CAN_BOARD_TYPE(MAS_CAN_BOARD_xxx, 版)` とする。
 

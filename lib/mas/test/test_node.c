@@ -40,7 +40,7 @@ static mas_can_node_config_t config(void) {
     mas_can_node_config_t c;
     memset(&c, 0, sizeof(c));
     c.uid = 0x1122334455667788ull;
-    c.board_type = MAS_CAN_BOARD_TYPE(MAS_CAN_BOARD_MD_2CH, 1);
+    c.board_type = MAS_CAN_BOARD_TYPE(MAS_CAN_BOARD_CAN_MD, 1);
     c.md_first_ch = 5;
     c.md_count = 1;
     c.md_has_current = true;
@@ -216,7 +216,7 @@ static void test_settings(void) {
 
     // 項目 1 は一覧の種類と版、項目 3 はライブラリのプロトコルの版（core/board.h）
     CHECK(request(setting(5, MAS_CAN_OP_READ, 1, 0), &r) &&
-          mas_can_value_u32(r.value) == MAS_CAN_BOARD_TYPE(MAS_CAN_BOARD_MD_2CH, 1));
+          mas_can_value_u32(r.value) == MAS_CAN_BOARD_TYPE(MAS_CAN_BOARD_CAN_MD, 1));
     CHECK(request(setting(5, MAS_CAN_OP_READ, 3, 0), &r) &&
           mas_can_value_u32(r.value) == MAS_CAN_PROTOCOL_VERSION);
     CHECK(request(setting(5, MAS_CAN_OP_READ, 4, 0), &r) && r.result == 0);

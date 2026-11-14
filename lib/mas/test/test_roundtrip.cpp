@@ -106,7 +106,7 @@ bool BusPort::send(const mcan::Frame& f) {
 static void boot(Board& b, uint8_t first_ch, uint8_t count) {
     memset(&b.cfg, 0, sizeof(b.cfg));
     b.cfg.uid = 0xABCD0000u + first_ch;
-    b.cfg.board_type = MAS_CAN_BOARD_TYPE(MAS_CAN_BOARD_MD_2CH, 1);
+    b.cfg.board_type = MAS_CAN_BOARD_TYPE(MAS_CAN_BOARD_CAN_MD, 1);
     b.cfg.md_first_ch = first_ch;
     b.cfg.md_count = count;
     b.cfg.md_has_current = true;
