@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """docs/guide/ と docs/spec/ を Wiki（Wiki.js、wiki.syamei0.com）のページの木にする。
 
-    python3 tools/wiki_sync.py OUT_DIR            # Wiki 用の Markdown を OUT_DIR に書くだけ
+    python3 tools/wiki_sync.py OUT_DIR            # main の docs から Wiki 用の Markdown を OUT_DIR に書くだけ
     python3 tools/wiki_sync.py OUT_DIR --upload   # 書いた上で Wiki のページを作る、直す
     python3 tools/wiki_sync.py OUT_DIR --check    # 載せたページのリンクの飛び先（見出し）が在るか確かめる
 
-中身は手で写さず、毎回 docs/ から作る。直すのはリポジトリの文書で、Wiki を直接直すと次の --upload で消える。
+中身は手で写さず、毎回 docs/ から作る。元は手元の作業中のファイルではなく、ブランチ（既定 main、--from で替える）の
+中身。Wiki は利用者が入れる公開の版に合わせる（2026-11-16、ユーザ）。main 以外から作ると、各ページの頭に
+「開発中の版」の付け札を出す。直すのはリポジトリの文書で、Wiki を直接直すと次の --upload で消える。
 - 相対リンクは、載せる文書なら Wiki のパスへ、それ以外（例、ファーム、台帳）は GitHub の URL へ書き換える。
 - 見出しへのリンク（#…）は、GitHub の付け方から Wiki.js の付け方へ写す。
 - ページの頭に、どの文書のどのコミットから作ったかを書き、印（MARK）を埋める。印の無いページは上書きしない。
@@ -30,6 +32,7 @@ BASE = "MAS/MAS-CAN"
 TAGS = ["MAS-CAN"]
 MARK = "<!-- mas-can-wiki:"
 TOKEN_FILE = Path.home() / ".config/mas-can/wiki-token"
+SRC = ROOT  # 文書を読む元。build() がブランチの中身を書き出した場所に替える
 UA = {"User-Agent": "mas-can-wiki-sync/1"}  # urllib の既定の名前はサイトの前段で弾かれる
 
 
@@ -43,12 +46,12 @@ def collect(map_page):
     """リポジトリの相対パス → Wiki のパス（locale 抜き）"""
     pages = {}
     for sub in ("guide", "spec"):
-        for f in sorted((ROOT / "docs" / sub).rglob("*.md")):
-            rel = f.relative_to(ROOT / "docs").with_suffix("")
+        for f in sorted((SRC / "docs" / sub).rglob("*.md")):
+            rel = f.relative_to(SRC / "docs").with_suffix("")
             parts = list(rel.parts)
             if parts[-1] == "README":
                 parts.pop()
-            pages[str(f.relative_to(ROOT))] = "/".join([BASE, *parts])
+            pages[str(f.relative_to(SRC))] = "/".join([BASE, *parts])
     if map_page:
         pages["docs/README.md"] = map_page
     return pages
@@ -142,7 +145,7 @@ LINK = re.compile(r"(!?)\[((?:[^\[\]]|\[[^\]]*\])*)\]\(([^)\s]+)(\s+\"[^\"]*\")?
 
 
 def convert(src, md, pages, anchors, ref, unresolved):
-    here = (ROOT / src).parent
+    here = (SRC / src).parent
 
     def fix(m):
         bang, text, url, title = m.group(1), m.group(2), m.group(3), m.group(4) or ""
@@ -154,24 +157,24 @@ def convert(src, md, pages, anchors, ref, unresolved):
         else:
             p = (here / path).resolve()
             try:
-                target = str(p.relative_to(ROOT))
+                target = str(p.relative_to(SRC))
             except ValueError:
                 unresolved.append((src, url))
                 return m.group(0)
             if p.is_dir():
                 for cand in (p / "README.md",):
-                    if str(cand.relative_to(ROOT)) in pages:
-                        target = str(cand.relative_to(ROOT))
+                    if str(cand.relative_to(SRC)) in pages:
+                        target = str(cand.relative_to(SRC))
                         break
                 else:
                     # README の無いフォルダ（guide/host/ など）は、いちばん近い上の入口へ
                     q = p
-                    while q != ROOT and str((q / "README.md").relative_to(ROOT)) not in pages:
+                    while q != SRC and str((q / "README.md").relative_to(SRC)) not in pages:
                         q = q.parent
-                    if q != ROOT and str(p.relative_to(ROOT)).startswith("docs/"):
-                        target = str((q / "README.md").relative_to(ROOT))
+                    if q != SRC and str(p.relative_to(SRC)).startswith("docs/"):
+                        target = str((q / "README.md").relative_to(SRC))
                     else:
-                        return f"{bang}[{text}]({REPO}/tree/{ref}/{p.relative_to(ROOT)}{title})"
+                        return f"{bang}[{text}]({REPO}/tree/{ref}/{p.relative_to(SRC)}{title})"
             elif not p.exists():
                 unresolved.append((src, url))
                 return m.group(0)
@@ -186,7 +189,7 @@ def convert(src, md, pages, anchors, ref, unresolved):
             if frag:
                 return f"{bang}[{text}]({dest}#{frag}{title})"
             return f"{bang}[{text}]({dest or '#'}{title})"
-        kind = "tree" if (ROOT / target).is_dir() else "blob"
+        kind = "tree" if (SRC / target).is_dir() else "blob"
         return f"{bang}[{text}]({REPO}/{kind}/{ref}/{target}{'#' + frag if frag else ''}{title})"
 
     out, fence = [], False
@@ -204,12 +207,26 @@ def convert(src, md, pages, anchors, ref, unresolved):
     return "\n".join(out)
 
 
+def snapshot(ref, dest):
+    """ブランチの中身を dest に書き出す（手元の作業中の変更は入らない）"""
+    global SRC
+    if not git("rev-parse", "--verify", "--quiet", ref):
+        sys.exit(f"{ref} というブランチ（コミット）が無い")
+    subprocess.run(["rm", "-rf", str(dest)], check=True)
+    dest.mkdir(parents=True)
+    arc = subprocess.run(["git", "-C", str(ROOT), "archive", ref], capture_output=True, check=True).stdout
+    subprocess.run(["tar", "-x", "-C", str(dest)], input=arc, check=True)
+    SRC = dest.resolve()
+
+
 def build(out_dir, map_page, ref):
+    snapshot(ref, out_dir / "_src")
     pages = collect(map_page)
-    commit = git("rev-parse", "--short", "HEAD")
-    branch = git("rev-parse", "--abbrev-ref", "HEAD")
-    dirty = git("status", "--porcelain", "--", "docs/guide", "docs/spec")
-    texts = {s: (ROOT / s).read_text(encoding="utf-8") for s in pages}
+    if not pages:
+        sys.exit(f"{ref} に docs/guide/ も docs/spec/ も無い。--from で別のブランチを指すか、先に {ref} に入れる")
+    commit = git("rev-parse", "--short", ref)
+    public = git("describe", "--tags", "--abbrev=0", "main") or "main"
+    texts = {s: (SRC / s).read_text(encoding="utf-8") for s in pages}
     anchors = {s: headings(t, True) for s, t in texts.items()}
     unresolved, manifest = [], []
     for src, path in pages.items():
@@ -220,12 +237,15 @@ def build(out_dir, map_page, ref):
             md = md[: m.start()] + md[m.end():]
         body = convert(src, md, pages, anchors, ref, unresolved).strip("\n")
         # 頭に出すのはこの文書を最後に変えたコミット（道具を直しただけで全ページが変わらないように）
-        last = git("log", "-1", "--format=%h %cs", "--", src).split() or [commit, ""]
-        mine = bool(git("status", "--porcelain", "--", src))
-        head = (
-            f"{MARK} {src} -->\n"
-            f"> このページは [MAS_CAN_Library]({REPO}) の [`{src}`]({REPO}/blob/{ref}/{src}) から自動で作っています"
-            f"（{last[0]}、{last[1]}{'、未コミットあり' if mine else ''}）。"
+        last = git("log", "-1", "--format=%h %cs", ref, "--", src).split() or [commit, ""]
+        head = f"{MARK} {src} -->\n"
+        if ref != "main":
+            head += (
+                f"> **開発中の版（`{ref}`）の文書です。** 今の公開版（{public}）と違う所があります。\n{{.is-warning}}\n\n"
+            )
+        head += (
+            f"> このページは [MAS_CAN_Library]({REPO}) の [`{src}`]({REPO}/blob/{ref}/{src})（{ref}）から自動で作っています"
+            f"（{last[0]}、{last[1]}）。"
             f"直すときはリポジトリの文書を直してください。ここを直しても次の更新で消えます。\n"
             "{.is-info}\n"
         )
@@ -235,7 +255,7 @@ def build(out_dir, map_page, ref):
         f.write_text(content, encoding="utf-8")
         manifest.append({"src": src, "path": path, "title": title, "file": str(f)})
     (out_dir / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=1), encoding="utf-8")
-    print(f"{len(manifest)} ページを {out_dir} に書いた（{branch} @ {commit}{'、未コミットあり' if dirty else ''}）")
+    print(f"{len(manifest)} ページを {out_dir} に書いた（{ref} @ {commit}）")
     for s, u in unresolved:
         print(f"  解決できないリンク: {s}: {u}")
     return manifest, unresolved
@@ -350,7 +370,8 @@ def main():
     ap.add_argument("--upload", action="store_true")
     ap.add_argument("--check", action="store_true")
     ap.add_argument("--map-page", help=f"docs/README.md（docs の地図）を載せるパス。例: {BASE}。省けば載せない")
-    ap.add_argument("--ref", default="next", help="GitHub へのリンクのブランチ")
+    ap.add_argument("--from", dest="ref", default="main",
+                    help="文書を読むブランチ。GitHub へのリンクもこのブランチを指す。main 以外なら付け札を出す")
     a = ap.parse_args()
     manifest, unresolved = build(a.out, a.map_page, a.ref)
     if a.upload:
