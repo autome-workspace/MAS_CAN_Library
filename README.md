@@ -13,7 +13,7 @@ void loop() {
 
 ## 今の状態
 
-版は v1.0.0 です。モータードライバーとサーボが動きます。主制御は ESP32（ESP32-S3 を含む）と Raspberry Pi Pico（RP2040）に対応しています。
+版は v1.1.0 です。モータードライバーとサーボが動きます。主制御は ESP32（ESP32-S3 を含む）と Raspberry Pi Pico（RP2040）に対応しています。
 
 相手にできるのは、この決まりを話すファームが入った基板だけです。今あるのは部の自作のもの 4 種類で、一覧は [今ある基板](docs/guide/boards.md) にあります。市販のモータードライバーを、そのままつなぐことはできません。実機で確かめていないことがある文書には、その旨が書いてあります。
 
@@ -45,7 +45,7 @@ platform = espressif32
 board = esp32dev            ; ESP32-S3 は esp32-s3-devkitc-1
 framework = arduino
 monitor_speed = 115200
-lib_deps = https://github.com/autome-workspace/MAS_CAN_Library.git#v1.0.0
+lib_deps = https://github.com/autome-workspace/MAS_CAN_Library.git#v1.1.0
 build_flags = -D CAN_TX=5 -D CAN_RX=4
 ```
 
@@ -59,7 +59,7 @@ board_build.core = earlephilhower
 framework = arduino
 monitor_speed = 115200
 lib_deps =
-    https://github.com/autome-workspace/MAS_CAN_Library.git#v1.0.0
+    https://github.com/autome-workspace/MAS_CAN_Library.git#v1.1.0
     https://github.com/obdevel/ACAN2040.git#1.0.6
 build_flags = -D CAN_TX=0 -D CAN_RX=1
 ```

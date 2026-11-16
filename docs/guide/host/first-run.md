@@ -71,7 +71,7 @@ platform = espressif32
 board = esp32dev
 framework = arduino
 monitor_speed = 115200
-lib_deps = https://github.com/autome-workspace/MAS_CAN_Library.git#v1.0.0
+lib_deps = https://github.com/autome-workspace/MAS_CAN_Library.git#v1.1.0
 build_flags = -D CAN_TX=5 -D CAN_RX=4
 ```
 
@@ -87,7 +87,7 @@ board_build.core = earlephilhower
 framework = arduino
 monitor_speed = 115200
 lib_deps =
-    https://github.com/autome-workspace/MAS_CAN_Library.git#v1.0.0
+    https://github.com/autome-workspace/MAS_CAN_Library.git#v1.1.0
     https://github.com/obdevel/ACAN2040.git#1.0.6
 build_flags = -D CAN_TX=0 -D CAN_RX=1
 ```

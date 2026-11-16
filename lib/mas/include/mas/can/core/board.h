@@ -9,11 +9,12 @@
 #define MAS_CAN_BOARD_CAN_MD 0x0001u    /* CAN_MD 基板（STM32F042、MD 1 ch。C-97） */
 #define MAS_CAN_BOARD_CAN_SERVO 0x0002u /* CAN-Servo 基板（RP2040-Zero、サーボ 8 ＋ MD 4） */
 #define MAS_CAN_BOARD_MICRO_MD 0x0003u  /* micro-MD 基板（CH32V203、1 ch） */
+#define MAS_CAN_BOARD_MD_2CH MAS_CAN_BOARD_CAN_MD /* 旧名（1.1.0 で改名。互換のために残す。C-97） */
 
 /* 項目 1 の値: 上位 16 bit ＝ 種類、下位 16 bit ＝ 基板の版（1 から） */
 #define MAS_CAN_BOARD_TYPE(kind, rev) (((uint32_t)(kind) << 16) | (uint16_t)(rev))
 
-/* プロトコルの版（項目 3。C-71〜74）。ライブラリと一緒に上げる。基板は node が自動で返す */
+/* プロトコルの版（項目 3。C-71〜74）。線の上の形が変わったときだけ上げる（V10）。基板は node が自動で返す */
 #define MAS_CAN_PROTOCOL_VERSION 0x010000C1u /* 1.0.0 */
 
 #endif /* MAS_CAN_CORE_BOARD_H */

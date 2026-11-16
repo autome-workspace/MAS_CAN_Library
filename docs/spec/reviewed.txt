@@ -1,12 +1,12 @@
 # tools/spec_check.py --stamp が書く。docs/spec/ を点検した時の元の版（git の blob）
-b9a5c1b24db3fb52a882fc2126906ac4030e9ca2 docs/internal/decisions/common.md
+30cdcc2cd539aa838909169f305747b073f7ff13 docs/internal/decisions/common.md
 ec918be20ef4d90facddf8b7045859452a0a52ec docs/internal/decisions/md.md
 3040b0f26349fcdb29b751158901835f2fe4aa69 docs/internal/decisions/servo.md
 e334dd8dd5912ea2f1925e634d65acba2a92b9eb docs/internal/decisions/api.md
 8f16d4518b4880d5767475e68522cdb346c5d953 lib/mas/include/mas/can/node.h
 42b2cf0f57ffcf0f4c6efe01ed4dc5be21d3d200 lib/mas/src/can/node.c
 00509d537f710c3d6493adf4d6dbe529ede4d503 lib/mas/src/can/host.cpp
-d681c1a05d66a9719d5047c22510b714fd456224 lib/mas/include/mas/can/core/board.h
+f2498352b2428eefdfdbc0b1909d6d37b3c932f7 lib/mas/include/mas/can/core/board.h
 94ac17a6ae67c8842930c79faf64e3eabc39ea65 lib/mas/include/mas/can/core/frame.h
 9d071544ac945634a3044a29694845fb0e96a6e8 lib/mas/include/mas/can/core/md_frame.h
 82c3383beb47db1763ea83ed08b5ff1fc66e770c lib/mas/include/mas/can/core/setting.h
