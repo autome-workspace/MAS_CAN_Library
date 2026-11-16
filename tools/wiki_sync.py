@@ -30,6 +30,7 @@ BASE = "MAS/MAS-CAN"
 TAGS = ["MAS-CAN"]
 MARK = "<!-- mas-can-wiki:"
 TOKEN_FILE = Path.home() / ".config/mas-can/wiki-token"
+UA = {"User-Agent": "mas-can-wiki-sync/1"}  # urllib の既定の名前はサイトの前段で弾かれる
 
 
 def git(*args):
@@ -86,7 +87,7 @@ def wikijs_slug(text):
         cat = unicodedata.category(c)
         if cat[0] in "LMN" or c in "-_~":
             out.append(c)
-        elif cat[0] == "Z" or c.isspace():
+        elif cat[0] == "Z" or c.isspace() or "\u3000" <= c <= "\u3002":  # 、。は区切りになる
             out.append(" ")
     s = re.sub(r"[\s\-]+", "-", "".join(out).strip()).lower()
     return "h-" + s if re.match(r"\d", s) else s
@@ -218,10 +219,13 @@ def build(out_dir, map_page, ref):
         if m:
             md = md[: m.start()] + md[m.end():]
         body = convert(src, md, pages, anchors, ref, unresolved).strip("\n")
+        # 頭に出すのはこの文書を最後に変えたコミット（道具を直しただけで全ページが変わらないように）
+        last = git("log", "-1", "--format=%h %cs", "--", src).split() or [commit, ""]
+        mine = bool(git("status", "--porcelain", "--", src))
         head = (
             f"{MARK} {src} -->\n"
             f"> このページは [MAS_CAN_Library]({REPO}) の [`{src}`]({REPO}/blob/{ref}/{src}) から自動で作っています"
-            f"（{branch} @ {commit}{'、未コミットあり' if dirty else ''}）。"
+            f"（{last[0]}、{last[1]}{'、未コミットあり' if mine else ''}）。"
             f"直すときはリポジトリの文書を直してください。ここを直しても次の更新で消えます。\n"
             "{.is-info}\n"
         )
@@ -250,7 +254,7 @@ def gql(query, variables=None, auth=None):
     req = urllib.request.Request(
         f"{WIKI}/graphql",
         data=json.dumps({"query": query, "variables": variables or {}}).encode(),
-        headers={"Content-Type": "application/json", **({"Authorization": f"Bearer {auth}"} if auth else {})},
+        headers={**UA, "Content-Type": "application/json", **({"Authorization": f"Bearer {auth}"} if auth else {})},
     )
     with urllib.request.urlopen(req, timeout=60) as r:
         d = json.load(r)
@@ -318,7 +322,7 @@ def check(manifest):
     """載せたページを読み、リンクの飛び先の見出しが在るかを確かめる"""
     ids = {}
     for p in manifest:
-        html = urllib.request.urlopen(f"{WIKI}/{LOCALE}/{p['path']}", timeout=60).read().decode()
+        html = urllib.request.urlopen(urllib.request.Request(f"{WIKI}/{LOCALE}/{p['path']}", headers=UA), timeout=60).read().decode()
         m = re.search(r'toc="([^"]*)"', html)
         found = set()
         def walk(n):
