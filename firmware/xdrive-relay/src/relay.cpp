@@ -22,6 +22,21 @@ bool elapsed(uint32_t now, uint32_t since, uint32_t period) {
 bool after(uint32_t a, uint32_t b) { return (int32_t)(a - b) > 0; }  // a が b より後
 float clampf(float v, float lim) { return v > lim ? lim : (v < -lim ? -lim : v); }
 
+// 速度の FF [Nm]
+// - 慣性: 前に送ってからの平均の加速度 × 慣性。20 ms ごとに送るので、その間の平均にして目標の段差ごとに
+//   FF が跳ねないようにする。加速度の制限が無いと目標が飛ぶので載せない
+// - 摩擦: 目標の速度の向きに一定のトルク。0 の近く（kFrictionBand）では比例で小さくして、0 で跳ねない。
+//   測った速度ではなく目標で決める（測った値で決めると止まりかけで向きが振れる）
+constexpr float kFrictionBand = 0.1f;  // [turn/s] モータ軸
+float torqueFf(const Channel& c, uint32_t now, const Config& cfg) {
+    float ff = 0;
+    uint32_t dt = now - c.cmd_at;
+    if (c.ramping && cfg.inertia > 0 && dt > 0)
+        ff += cfg.inertia * (c.target - c.sent_target) / ((float)dt * 1e-6f);
+    if (cfg.friction > 0) ff += cfg.friction * clampf(c.target / kFrictionBand, 1.0f);
+    return clampf(ff, (float)cfg.current_limit_ma / 1000.0f * cfg.kt);
+}
+
 // XDrive のエラー → MAS の異常の詳細（M-44: 8 過電流 9 過熱 10 低電圧 11 過電圧 12 エンコーダ
 // 13 ゲートドライバ）
 uint32_t faultBits(const Channel& c) {
@@ -475,9 +490,12 @@ void Relay::step(int i, uint32_t now, uint32_t dt) {
         // ---- 指令の値（M-29: 最大加速度の中で目標へ向かう。M-25: 動き出しで起点を戻す） ----
         if (out.reset_ctrl || want != c.control)
             c.target = want == xd::Control::Velocity ? c.vel : 0;
-        if (out.mode == MAS_CAN_MD_OUT_SPEED && set->max_accel_rpm_s > 0) {
-            float step = set->max_accel_rpm_s / 60.0f * gear * (float)dt * 1e-6f;
-            c.target += clampf(goal - c.target, step);
+        // 設定 46 が 0 なら cfg_.accel（ビルドで決めた値）を使う
+        const float accel = set->max_accel_rpm_s > 0 ? set->max_accel_rpm_s / 60.0f * gear : cfg_.accel;
+        c.ramping = out.mode == MAS_CAN_MD_OUT_SPEED && accel > 0;
+        if (c.ramping) {
+            // Closed loop に入るまでは進めない（入ってから最初の指令で目標が飛ばないように）
+            if (c.link == Link::Running) c.target += clampf(goal - c.target, accel * (float)dt * 1e-6f);
         } else {
             c.target = goal;
         }
@@ -489,6 +507,7 @@ void Relay::step(int i, uint32_t now, uint32_t dt) {
             pushXd(xd::setModes(node, want));
             pushXd(want == xd::Control::Velocity ? xd::inputVel(node, c.target)
                                                  : xd::inputTorque(node, c.target));
+            c.sent_target = c.target;
             pushXd(xd::setState(node, xd::State::ClosedLoop));
             c.control = want;
             c.retry_at = now;
@@ -500,8 +519,12 @@ void Relay::step(int i, uint32_t now, uint32_t dt) {
                 c.cmd_at = now - period_us_;
             }
             if (elapsed(now, c.cmd_at, period_us_)) {
-                pushXd(c.control == xd::Control::Velocity ? xd::inputVel(node, c.target)
-                                                          : xd::inputTorque(node, c.target));
+                if (c.control == xd::Control::Velocity) {
+                    pushXd(xd::inputVel(node, c.target, torqueFf(c, now, cfg_)));
+                    c.sent_target = c.target;
+                } else {
+                    pushXd(xd::inputTorque(node, c.target));
+                }
                 c.cmd_at = now;
             }
         }

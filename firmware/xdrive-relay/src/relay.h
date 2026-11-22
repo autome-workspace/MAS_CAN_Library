@@ -30,6 +30,9 @@ struct Config {
     float kt;                   // [Nm/A] XDrive の motor.config.torque_constant と同じ値
     float vel_limit;            // [turn/s] モータ軸。XDrive の vel_limit 以下にする
     uint32_t current_limit_ma;  // XDrive の current_lim [mA]。設定 33 はこれで抑える
+    float accel;                // [turn/s²] モータ軸。設定 46 が 0 のときの速度の加速度（0 ＝ 制限なし）
+    float inertia;              // [Nm/(turn/s²)] モータ軸。加速度に掛けてトルクの FF にする（0 ＝ FF なし）
+    float friction;             // [Nm] モータ軸。目標の速度の向きに足す摩擦の FF（0 ＝ なし）
 };
 
 // ch ごとの XDrive の様子
@@ -72,6 +75,8 @@ struct Channel {
     // こちらの指令
     xd::Control control = xd::Control::Velocity;
     float target = 0;  // 加速度の制限の後の値 [turn/s] または [Nm]
+    bool ramping = false;   // 速度を加速度の中で動かしている（FF を載せる）
+    float sent_target = 0;  // 最後に送った速度（FF はここからの平均の加速度）
     bool torque_clamped = false;
     bool estop_release = false;  // E-stop で速度 0 にした後、止まったら Idle にする
     uint32_t brake_since = 0;

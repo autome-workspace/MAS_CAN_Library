@@ -93,10 +93,10 @@ inline Frame setModes(uint8_t node, Control c) {
     putU32(f.data + 4, kInputPassthrough);
     return f;
 }
-inline Frame inputVel(uint8_t node, float vel) {
+inline Frame inputVel(uint8_t node, float vel, float torque_ff = 0.0f) {
     Frame f = make(node, kSetInputVel, 8);
     putF32(f.data, vel);
-    putF32(f.data + 4, 0.0f);
+    putF32(f.data + 4, torque_ff);
     return f;
 }
 inline Frame inputTorque(uint8_t node, float torque) {

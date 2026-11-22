@@ -51,6 +51,15 @@
 #ifndef XD_CURRENT_LIMIT_MA
 #define XD_CURRENT_LIMIT_MA 12000
 #endif
+#ifndef XD_ACCEL
+#define XD_ACCEL 0.0f  // [turn/s²] モータ軸。設定 46 が 0 のときの加速度（0 ＝ 制限なし）
+#endif
+#ifndef XD_FRICTION
+#define XD_FRICTION 0.0f  // [Nm] モータ軸。摩擦の FF（0 ＝ なし）
+#endif
+#ifndef XD_INERTIA
+#define XD_INERTIA 0.0f  // [Nm/(turn/s²)] モータ軸。速度の FF（0 ＝ なし）
+#endif
 static_assert(MD_FIRST_CH % 4 == 0 && MD_FIRST_CH < 32, "MD_FIRST_CH: 0, 4, ..., 28");
 
 #ifdef DEBUG_SERIAL
@@ -334,6 +343,9 @@ void setup() {
     cfg.kt = XD_KT;
     cfg.vel_limit = XD_VEL_LIMIT;
     cfg.current_limit_ma = XD_CURRENT_LIMIT_MA;
+    cfg.accel = XD_ACCEL;
+    cfg.inertia = XD_INERTIA;
+    cfg.friction = XD_FRICTION;
     relayCore.begin(cfg, micros());
 
     xdBus.begin();

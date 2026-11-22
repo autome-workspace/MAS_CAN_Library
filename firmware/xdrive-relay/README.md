@@ -21,11 +21,15 @@ XDrive を主バスから切り離す中継機（RP2040）のファーム。
 | `XD_KT` | 0.014768 | [Nm/A] XDrive の `motor.config.torque_constant` と同じにする |
 | `XD_VEL_LIMIT` | 18.0 | [turn/s] モータ軸。XDrive の `controller.config.vel_limit` 以下にする |
 | `XD_CURRENT_LIMIT_MA` | 12000 | XDrive の `motor.config.current_lim`。設定 33 の上限になる |
+| `XD_ACCEL` | 0 | [turn/s²] モータ軸。設定 46 が 0 のときの速度の加速度（0 ＝ 制限なし）。r2 は 10 |
+| `XD_INERTIA` | 0 | [Nm/(turn/s²)] モータ軸。速度の FF（0 ＝ なし）。r2 は 0.0145（5 kg、φ60、X 配置の 1 輪あたり） |
+| `XD_FRICTION` | 0 | [Nm] モータ軸。目標の速度の向きに足す摩擦の FF（0.1 turn/s 未満は比例で小さく、0 なら 0）。r2 は 0.04 |
 
 XDrive の側では、odrivetool で次を済ませておく。
 
 - 校正（`pre_calibrated`）、`can_node_id`、`baud_rate`。
 - watchdog を有効にする: `axis0.config.enable_watchdog = True`、`axis0.config.watchdog_timeout = 0.2`。中継機が止まったり線が抜けたりしたら、0.2 秒で XDrive が自分で止まる。中継機は、Idle の間も問い合わせを送り続けて watchdog に餌をやる。
+- 速度ループのゲイン（`vel_gain`、`vel_integrator_gain`）は XDrive の中にあり、CAN からは変えられない（fw 0.5.1 に `Set_Vel_Gains` が無い）。`input_mode` は PASSTHROUGH のまま（中継機が毎回送る）。r2 では `vel_gain` 0.05、`vel_integrator_gain` 0.1（2026-11-22。0.1 と 0.3 は床で発振した）。
 
 ## ビルドと書き込み
 
@@ -50,7 +54,7 @@ make -C test                       # PC のテスト
 
 | 主バス | XDrive |
 |---|---|
-| 速度 [rpm] | 速度制御。モータ軸の turn/s ＝ rpm ÷ 60 × 減速比（設定 37）。最高速度 45 と最大加速度 46 は中継機で掛ける |
+| 速度 [rpm] | 速度制御。モータ軸の turn/s ＝ rpm ÷ 60 × 減速比（設定 37）。最高速度 45 と最大加速度 46 は中継機で掛ける。46 が 0 なら `XD_ACCEL`。加速度の中で動かしている間は、トルクの FF ＝ `XD_INERTIA` × 加速度（前に送ってからの平均）と摩擦の FF（`XD_FRICTION`）を `Set_Input_Vel` に載せる。合計は電流の上限 × Kt で抑える |
 | 電流 [mA] | トルク制御。Nm ＝ mA ÷ 1000 × `XD_KT`。設定 33 で抑える |
 | duty | XDrive に無い。こなせない指令として止める（M-30、FB の bit 4） |
 | 止める・空転 | Idle |

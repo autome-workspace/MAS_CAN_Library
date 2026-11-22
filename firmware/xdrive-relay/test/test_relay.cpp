@@ -31,8 +31,8 @@ struct FakeXd {
     uint8_t state = 1;
     uint32_t error = 0;
     uint32_t motor_error = 0;
-    uint8_t control = 2;
-    float input_vel = 0, input_torque = 0;
+    uint8_t control = 2, input_mode = 1;
+    float input_vel = 0, input_torque = 0, torque_ff = 0;
     float pos = 3.25f, vel = 0;  // 絶対値エンコーダなので起動時も 0 でない
     uint32_t fed_at = 0, hb_at = 0;
     int n_estop = 0, n_clear = 0, n_modes = 0, n_closed = 0, n_rx = 0;
@@ -59,8 +59,15 @@ struct FakeXd {
                 }
                 break;
             }
-            case xd::kSetControllerModes: n_modes++; control = (uint8_t)xd::getU32(f.data); break;
-            case xd::kSetInputVel: input_vel = xd::getF32(f.data); break;
+            case xd::kSetControllerModes:
+                n_modes++;
+                control = (uint8_t)xd::getU32(f.data);
+                input_mode = (uint8_t)xd::getU32(f.data + 4);
+                break;
+            case xd::kSetInputVel:
+                input_vel = xd::getF32(f.data);
+                torque_ff = xd::getF32(f.data + 4);
+                break;
             case xd::kSetInputTorque: input_torque = xd::getF32(f.data); break;
             case xd::kClearErrors: n_clear++; error = 0; motor_error = 0; break;
             case xd::kGetEncoderEstimates: {
@@ -121,7 +128,7 @@ struct Bench {
     std::vector<xd::Frame> xd_sent;
     int xd_per_tick_max = 1000;  // 1 ms に送れる XDrive のフレームの数
 
-    explicit Bench(uint32_t baud = 250000, int n_xd = 1) {
+    explicit Bench(uint32_t baud = 250000, int n_xd = 1, float accel = 0, float inertia = 0, float friction = 0) {
         memset(flash, 0xFF, sizeof(flash));
         relay::Config cfg = {};
         cfg.node.uid = 0x0102030405060708ull;
@@ -137,6 +144,9 @@ struct Bench {
         cfg.kt = 0.014768f;
         cfg.vel_limit = 18.0f;
         cfg.current_limit_ma = 12000;
+        cfg.accel = accel;
+        cfg.inertia = inertia;
+        cfg.friction = friction;
         r.begin(cfg, now);
         r.ready(now);
     }
@@ -285,6 +295,8 @@ static void testLimits() {
     CHECK(b.writeF(4, 45, 120.0f) == MAS_CAN_RES_OK);  // 最高速度 120 rpm ＝ 2 turn/s
     b.hold(MAS_CAN_MD_CMD_SPEED, 4, 600, 300);
     CHECK(fabsf(b.xd[0].input_vel - 2.0f) < 1e-3f);
+    CHECK(b.xd[0].input_mode == 1);  // 速度も PASSTHROUGH（ランプと FF は中継機が作る）
+    CHECK(b.xd[0].torque_ff == 0);   // inertia 0 なら FF なし
     b.hold(MAS_CAN_MD_CMD_SPEED, 4, 0, 300);
 
     // 最大加速度 600 rpm/s ＝ 10 turn/s²。0 → 2 turn/s に 0.2 s
@@ -298,6 +310,7 @@ static void testLimits() {
     // 電流: 3000 mA ＝ 0.0443 Nm。上限 33 を 1000 mA にすると 0.0148 Nm で抑え、bit 3
     b.hold(MAS_CAN_MD_CMD_CURRENT, 4, 3000, 200);
     CHECK(b.xd[0].control == 1);
+    CHECK(b.xd[0].input_mode == 1);  // トルクは PASSTHROUGH
     CHECK(fabsf(b.xd[0].input_torque - 3.0f * 0.014768f) < 1e-4f);
     CHECK(b.r.channel(0).link == relay::Link::Running);  // 種類を変えても Closed loop のまま
     CHECK(b.writeU(4, 33, 1000) == MAS_CAN_RES_OK);
@@ -311,6 +324,70 @@ static void testLimits() {
     mas_can_value_set_u32(v, 50000);
     mas_can_setting_t r = b.setting(4, MAS_CAN_OP_WRITE, 33, v);
     CHECK(r.result == MAS_CAN_RES_OK && mas_can_value_u32(r.value) == 12000);
+}
+
+// 加速度の制限（ビルドの値、設定 46）と慣性の FF
+static void testFeedforward() {
+    Bench b(250000, 1, 10.0f, 0.0145f);  // 10 turn/s²、0.0145 Nm/(turn/s²) ＝ FF 0.145 Nm
+    b.run(1200);
+    b.hold(MAS_CAN_MD_CMD_SPEED, 4, 0, 300);  // 速度 0 で Closed loop に入れておく
+    CHECK(b.r.channel(0).link == relay::Link::Running);
+    CHECK(b.xd[0].torque_ff == 0);
+    b.hold(MAS_CAN_MD_CMD_SPEED, 4, 120, 100);  // 2 turn/s。0.2 s で届く
+    CHECK(b.xd[0].input_mode == 1);
+    CHECK(b.xd[0].input_vel > 0.6f && b.xd[0].input_vel < 1.4f);
+    CHECK(fabsf(b.xd[0].torque_ff - 0.145f) < 0.015f);
+    b.hold(MAS_CAN_MD_CMD_SPEED, 4, 120, 300);
+    CHECK(fabsf(b.xd[0].input_vel - 2.0f) < 1e-3f);
+    CHECK(b.xd[0].torque_ff == 0);  // 届いたら FF は 0
+    b.hold(MAS_CAN_MD_CMD_SPEED, 4, 0, 100);  // 減速は負の FF
+    CHECK(fabsf(b.xd[0].torque_ff + 0.145f) < 0.015f);
+    b.hold(MAS_CAN_MD_CMD_SPEED, 4, 0, 300);
+    CHECK(fabsf(b.xd[0].input_vel) < 1e-3f);
+    CHECK(b.xd[0].torque_ff == 0);
+
+    // 設定 46 があればそちらを使う: 60 rpm/s ＝ 1 turn/s² ＝ FF 0.0145 Nm
+    CHECK(b.writeF(4, 46, 60.0f) == MAS_CAN_RES_OK);
+    b.hold(MAS_CAN_MD_CMD_SPEED, 4, 120, 500);
+    CHECK(b.xd[0].input_vel > 0.3f && b.xd[0].input_vel < 0.7f);
+    CHECK(fabsf(b.xd[0].torque_ff - 0.0145f) < 0.002f);
+
+    // Idle から動き出すとき: Closed loop に入る前に目標を進めない（最初の指令が飛ばない）
+    b.run(400);
+    CHECK(b.r.channel(0).link == relay::Link::Idle);
+    CHECK(b.writeF(4, 46, 0.0f) == MAS_CAN_RES_OK);  // ビルドの値（10 turn/s²）に戻す
+    float first = -1;
+    for (int t = 0; t < 400 && first < 0; t += 10) {
+        b.cmd(MAS_CAN_MD_CMD_SPEED, 4, 120);
+        b.run(10);
+        if (b.r.channel(0).link == relay::Link::Running && b.xd[0].input_vel > 0) first = b.xd[0].input_vel;
+    }
+    CHECK(first > 0 && first < 0.3f);
+    CHECK(b.xd[0].torque_ff < 0.16f);
+
+    // 電流の指令には FF を載せない（トルクの指令そのもの）
+    b.hold(MAS_CAN_MD_CMD_CURRENT, 4, 1000, 200);
+    CHECK(b.xd[0].control == 1);
+    CHECK(fabsf(b.xd[0].input_torque - 0.014768f) < 1e-4f);
+}
+
+// 摩擦の FF: 目標の向きに一定。0 の近くは比例、0 なら 0。慣性の FF に足す
+static void testFriction() {
+    Bench b(250000, 1, 10.0f, 0.0145f, 0.04f);
+    b.run(1200);
+    b.hold(MAS_CAN_MD_CMD_SPEED, 4, 0, 300);
+    CHECK(b.r.channel(0).link == relay::Link::Running);
+    CHECK(b.xd[0].torque_ff == 0);
+    b.hold(MAS_CAN_MD_CMD_SPEED, 4, 120, 100);  // 加速中: 0.145 ＋ 0.04
+    CHECK(fabsf(b.xd[0].torque_ff - 0.185f) < 0.015f);
+    b.hold(MAS_CAN_MD_CMD_SPEED, 4, 120, 300);  // 一定: 摩擦だけ
+    CHECK(fabsf(b.xd[0].torque_ff - 0.04f) < 1e-4f);
+    b.hold(MAS_CAN_MD_CMD_SPEED, 4, -120, 600);  // 逆向き
+    CHECK(fabsf(b.xd[0].torque_ff + 0.04f) < 1e-4f);
+    b.hold(MAS_CAN_MD_CMD_SPEED, 4, 3, 400);  // 3 rpm ＝ 0.05 turn/s: 帯の中なので半分
+    CHECK(fabsf(b.xd[0].torque_ff - 0.02f) < 1e-3f);
+    b.hold(MAS_CAN_MD_CMD_SPEED, 4, 0, 300);
+    CHECK(b.xd[0].torque_ff == 0);
 }
 
 static void testBrakeAndEstop() {
@@ -636,6 +713,8 @@ int main() {
     testBootIdle();
     testSpeed();
     testLimits();
+    testFeedforward();
+    testFriction();
     testBrakeAndEstop();
     testXdError();
     testUncalibrated();
