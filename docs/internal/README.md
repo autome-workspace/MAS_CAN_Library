@@ -38,7 +38,7 @@ notes のうち、今も読む値打ちがあるのは、上の `v2-roots`、`do
 
 | 見る場所 | 中身 |
 |---|---|
-| [decisions/open.md](decisions/open.md) | まだ決めていないこと。取り消し線の行は、決まって台帳に移ったものです。生きているのは、取り消し線の無い行と、下のほうのメモの節です |
+| [decisions/open.md](decisions/open.md) | 生きている未決・やり残し・作業ブランチの**唯一の入口**（2026-11-25 整理）。解決済みは末尾の節へ分離 |
 | [notes/2026-11-14-spec-audit.md](notes/2026-11-14-spec-audit.md) | 実装が台帳どおりでない所（A）と、台帳で決まっていない所（B）の一覧。いちばん新しい点検です |
 | [notes/2026-11-15-read-api-gaps.md](notes/2026-11-15-read-api-gaps.md) | 動かない理由を調べるための、読む関数の足りない所 |
 | [versioning.md](versioning.md) の「未定」 | 版まわりの、まだ決めていないこと |
@@ -54,7 +54,7 @@ notes のうち、今も読む値打ちがあるのは、上の `v2-roots`、`do
 5. **例とファームをビルドします。**
    - 例（`examples/`）と、RP2040 と CH32 のファーム（`firmware/CAN-Servo-v1`、`firmware/xdrive-relay`、`firmware/micro-MD`）: そのフォルダで `pio run`。
    - `firmware/CAN_MD`: CMake で、Release でビルドします（Debug は FLASH に入りません）。手順は `firmware/CAN_MD/README.md` にあります。
-6. **ブランチ。** `next` には、いつ `main` に入れてもよいものだけを置きます。実機で確かめる必要のある変更は、短い作業用のブランチで進め、確かめてから `next` に入れます。`main` には `next` を早送りで入れ、直接コミットしません（[versioning.md](versioning.md) の V8）。
+6. **ブランチ。** `main` には、実機確認済み・PC テスト通過のものだけを置きます（V11、2026-11-26 に `next` を廃止）。実機で確かめる必要のある変更や仮実装は作業ブランチ（`feat/`、`fix/`、`wip/`）で進め、確かめてから `main` に入れます。旧機体はタグ（`#v1.1.0` 等）で固定します（[versioning.md](versioning.md) の V11）。
 
 AI に作業させるときの決まりは、リポジトリ直下の `CLAUDE.md` にあります。
 

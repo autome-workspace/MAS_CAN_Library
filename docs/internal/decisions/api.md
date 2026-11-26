@@ -1,10 +1,10 @@
 # 主制御のライブラリ（API-）
 
-> **確認の状態: 未確認**（2026-10-15）。`docs/redesign/library-api-draft.md` の「決まったこと」と「API を固める」から写しただけで、ユーザはまだ見ていない。節ごとに確認し、済んだ節の見出しに「（確認済み 日付）」を付ける。
+> **確認の状態: 確認済み（2026-11-25。「汎用ピン、エアー、ソレノイド」節のみ未確認）**。元は `docs/internal/archive/redesign/library-api-draft.md` から写し、節ごとに確認した。
 
 API の正典はこの台帳。順番は台帳 → ヘッダ → 見本（`examples/api_tour`）。見本にしか無いものは「試し」で、下の節に置く（2026-10-14、ユーザ）。どれもライブラリの中の話なので、線の上の形には関わらない。ただし部で使い始めたら、変えると使う側のコードが壊れる。
 
-共通の部分は [common.md](common.md)。書き方は [README.md](README.md)。
+共通の部分は [common.md](common.md)。書き方は [README.md](README.md)。廃止した決定は末尾の節にまとめた。
 
 ## 名前と置き場所（確認済み 10-15）
 
@@ -14,15 +14,13 @@ API の正典はこの台帳。順番は台帳 → ヘッダ → 見本（`examp
 | API-2 | 立場の名前: 主制御 ＝ `Host`、基板 ＝ Node、ch（種類 ＋ 番号）＝ `Device`。`Bus` は使わない。Host は Node を意識しない。ユーザは「Device」の呼び方に満足していない（よい名前があれば変える）。`Channel` は `ch()` と重なるので採らない | 10-14 ユーザ | 主制御のクラスの名前、立場の名前 |
 | API-3 | `include/mas/can/` の直下は立場のもの（`host.h`、`device.h`、`port.h`、`node.h`）だけ。親は `xxx.h`、継承する側は `xxx/`（`device/md.h` など、`port/esp32_twai.h`）。`core/` は線の上の形（C、基板と共有） | 10-14 ユーザ | ファイルの置き場所、取っ手の置き場所 |
 | API-61 | `core/` のファイルは、取っ手と同じ名前にしない（エディタのタブや include で取り違えるため）。`core/md.h` → `core/md_frame.h`、`core/md.c` → `core/md_frame.c`。今後も `core/<種類>_frame.h` の形にする | 10-15 ユーザ | API-3 |
-| ~~API-4~~ | ~~ハードウェアの窓口は `Port`（send、receive、micros、受信の溢れの数）。実装は `port/` に置く（ESP32 は `Esp32Twai`）~~ → API-33 | 10-14 ユーザ | ファイルの置き場所 |
-| ~~API-33~~ | ~~ハードウェアの窓口は `Port`。必ず書くのは `bool send(const Frame&)`、`bool receive(Frame&)`（無ければ false。`update()` は false まで読む）、`uint32_t micros()`。受信の溢れの数 `uint32_t rxOverflows()` は任意で、既定は 0（数えられるポートだけ上書きする。ESP32 は `twai_get_status_info()` の rx_missed と rx_overrun）。残りの数は返さない（安く取れない部品があり、知りたいのは失ったかどうか）。実装は `port/` に置く（ESP32 は `Esp32Twai`）~~ → API-34 | 10-15 ユーザ | API-4、A3 の見直し |
 | API-34 | ハードウェアの窓口は `Port`。必ず書くのは `bool send(const Frame&)`、`bool receive(Frame&)`（無ければ false。`update()` は false まで読む）、`uint32_t micros()`、`uint32_t rxOverflows()`（受信の溢れの数。すべて `= 0`。数えられない部品のポートは 0 を返すように書く。ESP32 は `twai_get_status_info()` の rx_missed と rx_overrun）。残りの数は返さない（安く取れない部品があり、知りたいのは失ったかどうか）。実装は `port/` に置く（ESP32 は `Esp32Twai`） | 10-15 ユーザ | API-33 |
 
 ## 動詞の決まり（確認済み 10-15）
 
 | 番号 | 決定 | 日付・誰 | 旧番号・出典 |
 |---|---|---|---|
-| API-58 | 指令（今どう動くか。毎周期送る）は `set`、設定（どう振る舞うか）は `config` で始める。基板に書く設定も、ライブラリの中だけの設定も `config`。この台帳の他の行の設定の名前は読み替える: `setSpeedResolution` → `configSpeedResolution`、`setCurrentResolution` → `configCurrentResolution`、`setDeadzone` → `configDeadzone`、`setCalibration` → `configCalibration`、`setBusLoadWarning` → `configBusLoadWarning`、`Pin` の `setMode`／`setPull`／`setInvert`／`setDebounce`／`setHoldOnLoss` → `config…`、`Air::setHoldOnLoss` → `configHoldOnLoss`。CTRE（Phoenix 5）の set と config の先例 | 10-15 ユーザ | — |
+| API-58 | 指令（今どう動くか。毎周期送る）は `set`、設定（どう振る舞うか）は `config` で始める。基板に書く設定も、ライブラリの中だけの設定も `config`（CTRE Phoenix 5 の `set` と `config` の先例）。2026-11-25 にこの台帳の各行の表記も `config*` へ統一した | 10-15 ユーザ | — |
 
 ## 初期化（確認済み 10-15）
 
@@ -33,8 +31,6 @@ API の正典はこの台帳。順番は台帳 → ヘッダ → 見本（`examp
 | API-7 | 土台は `can.begin(Port&)`。ESP32（`ESP_PLATFORM`）では近道の `can.begin(tx, rx)` も使える。`Esp32Twai::begin(tx, rx)` も同じ順 | 10-14 ユーザ | A9 |
 | API-63 | RP2040 の主制御は `Rp2040Can2040`（ACAN2040 で can2040 を使う。PIO 0 と 1 で 2 本まで）。近道は `can.begin(tx, rx, pio = 1)`。ACAN2040 は使う側の lib_deps に入れる（can2040 は GPL-3.0 なので同梱しない）。受信の溢れは Port が数える | 10-16 ユーザ | API-7 |
 | API-64 | 複数のバスは `Host` を線ごとに 1 つ作って並べる。E-stop、SYNC、ch の番号は線ごとに独立（片方の `estop()` はもう片方を止めない） | 10-16 ユーザ | — |
-| ~~API-8~~ | ~~`begin` は bool を返し、失敗の理由は `can.lastError()` で人が読む文字列として読む。失敗が無ければ `""`~~ → API-39 | 10-14 ユーザ | A9 |
-| ~~API-39~~ | ~~主制御全体の異常は 2 段: `can.lastError()` がタグ（`enum class Error : uint8_t`、`None` ＝ 0）を返し、`mcan::toString(Error)` が人の読む文字列（`None` は `""`）を返す。`begin` は bool のまま。`lastError()` は最後の 1 つを返す。履歴の扱いは後回し~~ → API-47 | 10-15 ユーザ | API-8 |
 | API-47 | 主制御全体の異常は 2 段: `can.error()` がタグ（`enum class Error : uint8_t`、`None` ＝ 0）を返し、`mcan::toString(Error)` が人の読む文字列（`None` は `""`）を返す。`begin` は bool のまま。名前は `lastError` をやめて `error`。いくつを、いつまで持つか（最後の 1 つか、履歴か、消し方）は未決（open.md） | 10-15 ユーザ | API-39 |
 | API-35 | `Host` のコンストラクタは `constexpr` にし、メンバを 0 から始める（どのグローバルより先にできあがり、別のファイルに書いた取っ手の `can.md(ch)` でも安全）。実装の決まりで、API の形は変わらない | 10-15 ユーザ | — |
 
@@ -47,7 +43,7 @@ API の正典はこの台帳。順番は台帳 → ヘッダ → 見本（`examp
 | API-11 | 受信が溢れた回数を `can.rxOverflows()` で読める | 10-12 ユーザ | A3 の見直し |
 | API-36 | `can.flush()`（名前は仮）は、値が変わった指令の束を今すぐ送り、周期送信の時計をそこから数え直す。指令だけが対象で、設定は含まない。全部の値を置いてから 1 回呼ぶ（取っ手の関数に「今すぐ」の引数は付けない。束を何本も送り、途中の値が届くため）。送りすぎの歯止めは無く、使う人の責任 | 10-15 ユーザ | — |
 | API-37 | `can.busLoad()` はバスの使用率（直近 1 秒、0.0〜1.0）を返す。自分が送ったフレームと受けたフレームの長さ（47 bit ＋ 8 × DLC、スタッフィングは推定）から計算する目安 | 10-15 ユーザ | — |
-| API-38 | `can.setBusLoadWarning(割合)` を超えたら `can.error()` に残す。主制御全体の異常（バスの使用率、loop の中の確保の失敗など）は `error()` に集める | 10-15 ユーザ | A9 |
+| API-38 | `can.configBusLoadWarning(割合)` を超えたら `can.error()` に残す。主制御全体の異常（バスの使用率、loop の中の確保の失敗など）は `error()` に集める | 10-15 ユーザ | A9、API-58 |
 
 ## 単位と値（確認済み 10-15）
 
@@ -55,29 +51,29 @@ API の正典はこの台帳。順番は台帳 → ヘッダ → 見本（`examp
 |---|---|---|---|
 | API-12 | API に出る値は SI（速度 rad/s、電流 A、上限、最高速度、加速度、ゲインも）。換算はライブラリの中に隠す。float の物理量が基本で、生の整数は別名（`setSpeedRaw(int16_t)` など）。rpm との換算の関数は足さない | 10-04、10-12 ユーザ | A2 |
 | API-13 | 位置は積み上げたカウントの int64 だけ（1 回転 ＝ 65536、電源投入時が 0）。rad への換算は小さな関数で添える | 10-04 ユーザ | A2 |
-| API-14 | 刻みは `setSpeedResolution`／`setCurrentResolution`（rad/s、A per LSB）で指定する。その刻みで送れる最大を `speedRange()`／`currentRange()` で返す（通信しない） | 10-04、10-12 ユーザ | A4 |
+| API-14 | 刻みは `configSpeedResolution`／`configCurrentResolution`（rad/s、A per LSB）で指定する。その刻みで送れる最大を `speedRange()`／`currentRange()` で返す（通信しない） | 10-04、10-12 ユーザ | A4、API-58 |
 | API-60 | double は使わない。小数はすべて float（32 bit。ESP32 などの FPU は単精度だけで、double はソフトで遅い）。`countsToRad()` も float を返す | 10-15 ユーザ | API-13 |
 | API-40 | `setDuty(float d, bool brake = true)`。d は −1.0〜+1.0、brake は PWM を切っている間の扱い（M-8 の bit 0）。`setDuty(0.0f)` はブレーキで止める。生の値は `setDutyRaw(int16_t)`。FB の duty も −1〜+1 | 10-15 ユーザ | — |
 | API-41 | 位置まわり（原点の関数、基板が再起動したときの扱い）は今は作らない。API-13 は決定として残し、作るのは後 | 10-15 ユーザ | M-52 |
-| API-42 | set 系（指令と設定）は返り値なし（void）。呼んだ時点では値を置くか要求を積むだけで、結果は FB、`ready()`、設定の失敗の知らせで分かる | 10-15 ユーザ | — |
+| API-42 | set / config 系（指令と設定）は返り値なし（void）。呼んだ時点では値を置くか要求を積むだけで、結果は FB、`ready()`、設定の失敗の知らせで分かる | 10-15 ユーザ | — |
 
-## プログラムの値と再起動（確認済み 10-15）
+## プログラムの値と再起動（確認済み 10-15、更新 11-25）
 
 | 番号 | 決定 | 日付・誰 | 旧番号・出典 |
 |---|---|---|---|
 | API-15 | ライブラリはアプリが書いたプログラムの値（刻み）を覚え、基板の再起動に気づいたら自動で送り直す。電源投入の直後も同じ | 10-04 ユーザ | A4 (1) |
-| ~~API-16~~ | ~~再起動に気づいてから、書けたと応答で確かめるまでは、その ch に止める値だけを送る。アプリからは `w.ready()` が false として見える~~ → API-43 | 10-04 ユーザ | A4 (2) |
 | API-43 | プログラムの値を書けたと応答で確かめるまでは、その ch に止める値だけを送る。アプリからは `w.ready()` が false として見える。主な役目は主制御の起動直後（基板には前のプログラムの刻みが残り、起動の猶予 C-89 も無い）。基板の再起動はほぼ猶予で守れ、これは送り直しが 200 ms を超えたときや FB を切った ch の受け皿 | 10-15 ユーザ | API-16 |
 | API-44 | 最初に FB を受けたとき、刻みを書いていない ch にも既定値（1.0）を書く（主制御だけをリセットすると、前のプログラムの刻みが基板に残るため）。書けるまでは API-43 で止める | 10-15 ユーザ | 保留 2（10-14） |
 | API-45 | `can.waitReady(ms)` は、確保した全 ch が online かつ ready になるまで待つ（FB の無い種類は数えない）。待つ間も中で `update()` を回す。false なら、どの ch が足りないかは `w.online()`、`w.ready()` で見る。`waitOnline(配列, 個数, ms)` は作らない | 10-15 ユーザ | 保留 1（10-14） |
 | API-65 | ライブラリは刻みを 2 つ持つ: アプリが望む値と、基板で確かめた値（応答で返った値）。FB の速度と電流は確かめた値で換算し、確かめるまでは `speedValid()`、`currentValid()` を false、値を 0 にする（位置は刻みに依らないので数える）。`ready()` は、確かめた値が望む値と同じときに true。望む値と同じ値を config し直しても止めない | 10-16 ユーザ | API-43、notes/2026-10-16-library-review.md |
 | API-17 | 設定を書く関数は待たずに戻る。送信と応答の確認は `update()` の中で 1 つずつ進める | 10-04 ユーザ | A4 (3) |
+| API-68 | 設定の読み書き（共通項目 0〜4 や MD の 32〜46 など）はフラッシュ保存 API（A5）と切り離して先に解放する。主制御ライブラリにはまず項目番号と値を扱う低レベルの生 API（read / write、揮発）を出し、よく使う項目から型付きの `config*` / `read*` を順に足す。フラッシュへの保存・初期化（A5）は誤保存防止のため当面は道具（`mascan_console` 等）の担当とし、主制御ライブラリからは保留 | 11-25 ユーザ | API-59、notes/2026-11-15-read-api-gaps.md、notes/2026-11-22-speed-ff.md |
 
 ## 異常（確認済み 10-15）
 
 | 番号 | 決定 | 日付・誰 | 旧番号・出典 |
 |---|---|---|---|
-| API-18 | 問い合わせ（`w.hasFault()`、`w.faultDetail()`）とコールバック（`can.onFault(...)`）の両方を用意する。FB の bit 0 が立ったら異常の詳細を ~~1 回~~ 読んで置いておく（立っている間の読み直しは API-66）。基板と話せないことは `w.online()` | 10-04 ユーザ | A7 (1) |
+| API-18 | 問い合わせ（`w.hasFault()`、`w.faultDetail()`）とコールバック（`can.onFault(...)`）の両方を用意する。FB の bit 0 が立ったら異常の詳細を読んで置いておく（立っている間の読み直しは API-66）。基板と話せないことは `w.online()` | 10-04 ユーザ | A7 (1) |
 | API-66 | FB の bit 0 が立っている間は、異常の詳細を 100 ms ごとに読み直す。前から異常が立っている基板の再起動を、起動の知らせを取りこぼしても詳細の bit 0 で見つけ（C-69）、起動の猶予（200 ms、C-89）が明ける前に刻みを書き直すため。新しく立った bit もこれで知らせる。1 秒では猶予が明けた後に刻み違いの指令が最大 630 ms 出た（往復テスト） | 10-30 ユーザ | notes/2026-10-30-audit.md A1 |
 | API-19 | 再起動の bit 0 だけはライブラリが消す。他の bit はアプリが `w.clearFault()` で消す | 10-04 ユーザ | A7 (2) |
 | API-20 | すべての取っ手は共通の親 `Device`（種類と ch）を 1 段だけ継承する。virtual は使わない。`onFault` は `void(Device&, uint32_t new_bits)`。特定の相手かは `dev == lift` で比べる | 10-13、10-14 ユーザ | A7 の見直し |
@@ -111,33 +107,40 @@ API の正典はこの台帳。順番は台帳 → ヘッダ → 見本（`examp
 | API-26 | スティックは −1.0〜+1.0、トリガーは 0.0〜1.0 の float。生の値は別名（`leftXRaw()` など） | 10-04 ユーザ | A6 (1) |
 | API-27 | ボタンは `held(b)`、`pressed(b)`、`released(b)`。瞬間は届いたフレームを全部見て記録する。名前は位置で付ける（`Up` `Down` `Left` `Right`、`North` `South` `West` `East`、`L1` `R1` `L3` `R3`） | 10-04 ユーザ | A6 (2) |
 | API-28 | 200 ms フレームが来なければ `connected()` は false、スティックは 0、ボタンは離した状態 | 10-04 ユーザ | A6 (3) |
-| API-29 | 遊びは既定で無し。`pad.setDeadzone(r)` で選ぶ。スティックごとの円の形で切り、境目から 0 で始めて 1.0 まで伸ばし直す。トリガーにはかけない | 10-04、10-13 ユーザ | A6 (4)、A6 の見直し |
+| API-29 | 遊びは既定で無し。`pad.configDeadzone(r)` で選ぶ。スティックごとの円の形で切り、境目から 0 で始めて 1.0 まで伸ばし直す。トリガーにはかけない | 10-04、10-13 ユーザ | A6 (4)、A6 の見直し、API-58 |
 | API-53 | `Controller` は `online()`（受信機の基板と話せている。FB が 200 ms 来ない）と `connected()`（パッドとの無線がつながっている。状態の bit 12）を両方持つ | 10-15 ユーザ | A6 (3) |
-| API-54 | ボタンに `Select`（中央の左。Share、View、−）と `Start`（中央の右。Options、Menu、＋）を足す。線の上はボタンの欄の bit 14 ＝ Select、bit 15 ＝ Start（spec §11 の予約を使う。reserved.md を作るときにコントローラの台帳へ移す）。Home などは入れない（欄に空きが無く、Home はペアリングに使われることが多い） | 10-15 ユーザ | — |
+| API-54 | ボタンに `Select`（中央の左。Share、View、−）と `Start`（中央の右。Options、Menu、＋）を足す。線の上はボタンの欄の bit 14 ＝ Select、bit 15 ＝ Start（spec §11 の予約を使う。コントローラの台帳を作るときに移す。予約は common.md の C-98）。Home などは入れない（欄に空きが無く、Home はペアリングに使われることが多い） | 10-15 ユーザ | — |
 
 ## サーボ（`Servo`）（確認済み 10-15）
 
 | 番号 | 決定 | 日付・誰 | 旧番号・出典 |
 |---|---|---|---|
 | API-55 | 取っ手は `can.servo(ch)`。`setPulseUs(us)` はパルス幅で指令する（10 µs 刻みに丸め、500〜2500 µs に抑える。S-2）。`release()` はパルスを止めて力を抜く（S-3 の 255） | 10-15 ユーザ | S-2、S-3、mini |
-| API-56 | 角度の換算を今入れる。`setCalibration(rad0, rad1, us0, us1)` で 2 点を与え（角度 rad0 で us0、rad1 で us1）、`setAngle(rad)` は 2 点を結ぶ直線でパルス幅に直す。反転は 2 点の向きで表す | 10-15 ユーザ | S-5 |
+| API-56 | 角度の換算を今入れる。`configCalibration(rad0, rad1, us0, us1)` で 2 点を与え（角度 rad0 で us0、rad1 で us1）、`setAngle(rad)` は 2 点を結ぶ直線でパルス幅に直す。反転は 2 点の向きで表す | 10-15 ユーザ | S-5、API-58 |
 | API-57 | FB が無いので `online()`、`ready()` は持たない。`waitReady` も数えない（API-45） | 10-15 ユーザ | S-10 |
 | API-67 | `setAngle(rad)` の換算が NaN になったら無視し、前の指令を保つ（IK の破綻などで端へ振り切らない） | 10-30 ユーザ | notes/2026-10-30-audit.md A5 |
-| API-59 | 機体の値（サーボの 32〜34、MD の 32〜46 など）を書く `config` は、保存の API（A5）と一緒に全種類まとめて決める。それまでサーボは既定（500〜2500 µs、20 ms）で使う | 10-15 ユーザ | A5 |
 
-## 汎用ピン、エアー、ソレノイド
+## 汎用ピン、エアー、ソレノイド（未確認）
 
 | 番号 | 決定 | 日付・誰 | 旧番号・出典 |
 |---|---|---|---|
-| API-30 | 汎用 I/O は入力と出力を分けず、ピン 1 本を `Pin` で扱う。`setMode(Input/Output, Digital/Analog)` は 2 つの軸を 1 回で設定する | 10-14 ユーザ | 汎用 I/O の取っ手 |
-| API-31 | `Pin` の関数: `setPull(PullUp/PullDown/NoPull)`、`setInvert`、`setDebounce(ms)`、`setHoldOnLoss`。入力は `read()`、`level()`（0〜1）、`raw()`、`rose()`／`fell()`、`changedAt()`（主制御の µs）、`online()`。出力は `set(bool)`、`setLevel(0〜1)`、`setRaw(uint8_t)`。モードに合わない呼び出しは何もしない | 10-14 ユーザ | 汎用 I/O の取っ手 |
-| API-32 | エアーとソレノイドは別の取っ手（`can.air(ch)`、`can.solenoid(ch)`）。`Air` は `set(bool)`、`on()`、`off()`、`toggle()`、`isOn()`（送った値）、`setHoldOnLoss`。`Solenoid` は `pulse(ms)`、`on()`、`off()` | 10-14 ユーザ | D38、汎用 I/O の取っ手 |
+| API-30 | 汎用 I/O は入力と出力を分けず、ピン 1 本を `Pin` で扱う。`configMode(Input/Output, Digital/Analog)` は 2 つの軸を 1 回で設定する | 10-14 ユーザ | 汎用 I/O の取っ手、API-58 |
+| API-31 | `Pin` の関数: `configPull(PullUp/PullDown/NoPull)`、`configInvert`、`configDebounce(ms)`、`configHoldOnLoss`。入力は `read()`、`level()`（0〜1）、`raw()`、`rose()`／`fell()`、`changedAt()`（主制御の µs）、`online()`。出力は `set(bool)`、`setLevel(0〜1)`、`setRaw(uint8_t)`。モードに合わない呼び出しは何もしない | 10-14 ユーザ | 汎用 I/O の取っ手、API-58 |
+| API-32 | エアーとソレノイドは別の取っ手（`can.air(ch)`、`can.solenoid(ch)`）。`Air` は `set(bool)`、`on()`、`off()`、`toggle()`、`isOn()`（送った値）、`configHoldOnLoss`。`Solenoid` は `pulse(ms)`、`on()`、`off()` | 10-14 ユーザ | D38、汎用 I/O の取っ手、API-58 |
 
 ## 見本にしか無いもの（試し）
 
 `examples/api_tour` に書かれているが、まだ決定になっていないもの。
 
-- ~~`Md` の関数~~ → API-50〜52
 - `mcan::countsToRad()`（API-13 の換算の関数の名前）
-- ~~`can.waitOnline(配列, 個数, ms)`~~ → API-45 の `waitReady(ms)`
-- ~~サーボの取っ手は見本に無い~~ → API-55〜57。見本にはまだ無い
+
+## 廃止した決定
+
+| 番号 | 決定 | 日付・誰 | 旧番号・出典 |
+|---|---|---|---|
+| ~~API-4~~ | ~~ハードウェアの窓口は `Port`（send、receive、micros、受信の溢れの数）。実装は `port/` に置く（ESP32 は `Esp32Twai`）~~ → API-33 | 10-14 ユーザ | ファイルの置き場所 |
+| ~~API-33~~ | ~~ハードウェアの窓口は `Port`。必ず書くのは `bool send(const Frame&)`、`bool receive(Frame&)`（無ければ false。`update()` は false まで読む）、`uint32_t micros()`。受信の溢れの数 `uint32_t rxOverflows()` は任意で、既定は 0（数えられるポートだけ上書きする。ESP32 は `twai_get_status_info()` の rx_missed と rx_overrun）。残りの数は返さない（安く取れない部品があり、知りたいのは失ったかどうか）。実装は `port/` に置く（ESP32 は `Esp32Twai`）~~ → API-34 | 10-15 ユーザ | API-4、A3 の見直し |
+| ~~API-8~~ | ~~`begin` は bool を返し、失敗の理由は `can.lastError()` で人が読む文字列として読む。失敗が無ければ `""`~~ → API-39 | 10-14 ユーザ | A9 |
+| ~~API-39~~ | ~~主制御全体の異常は 2 段: `can.lastError()` がタグ（`enum class Error : uint8_t`、`None` ＝ 0）を返し、`mcan::toString(Error)` が人の読む文字列（`None` は `""`）を返す。`begin` は bool のまま。`lastError()` は最後の 1 つを返す。履歴の扱いは後回し~~ → API-47 | 10-15 ユーザ | API-8 |
+| ~~API-16~~ | ~~再起動に気づいてから、書けたと応答で確かめるまでは、その ch に止める値だけを送る。アプリからは `w.ready()` が false として見える~~ → API-43 | 10-04 ユーザ | A4 (2) |
+| ~~API-59~~ | ~~機体の値（サーボの 32〜34、MD の 32〜46 など）を書く `config` は、保存の API（A5）と一緒に全種類まとめて決める。それまでサーボは既定（500〜2500 µs、20 ms）で使う~~ → API-68 | 10-15 ユーザ | A5 |

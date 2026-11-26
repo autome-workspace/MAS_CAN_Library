@@ -17,13 +17,13 @@ MAS CAN プロトコル v1 の再設計と、そのライブラリ・ファー�
 
 ## 作業場
 
-作業はリポジトリの直下（`next`）だけで行う。worktree の `.ref/`（旧実装の写し）と `.mini/`（`mini` ブランチ）は 2026-10-15 に消した。旧実装はタグ `ref-claude-impl` に残っている。CAN-Servo のファームは `firmware/CAN-Servo-v1` に移した。
+作業はリポジトリの直下（`main`）で行う（V11、2026-11-26 に `next` を廃止）。実機未確認や仮実装は作業ブランチ（`feat/`、`fix/`、`wip/`）に分ける。worktree の `.ref/`（旧実装の写し）と `.mini/`（`mini` ブランチ）は 2026-10-15 に消した。旧実装はタグ `ref-claude-impl` に残っている。CAN-Servo のファームは `firmware/CAN-Servo-v1` に移した。
 
 ## テストとビルド
 
 - PC のテスト: `make -C lib/mas/test`（`test_core`、`test_node`、`test_host`、`test_roundtrip`）。
 - 例と RP2040 のファームのビルド: そのフォルダで `pio run`（`examples/` の各例、`firmware/CAN-Servo-v1`）。教える例は `md_minimal`、`md_check`（回らない理由を表示する。2026-11-15）、`servo_minimal`（主制御）、`node_md_rp2040`（基板側の雛形）。`md_serial_test` は試すための道具。例は増やさない（2026-11-15、ユーザ: 引き算で考える）。
-- `firmware/AS5600-CAN` はエンコーダの種類の**仮の形**（2026-11-16、ユーザ: 簡単でよい、仮と明記して今欲しい）。台帳に無く、処理は `src/enc.c` に閉じている（`make -C firmware/AS5600-CAN/test`）。記録は `docs/internal/notes/2026-11-16-encoder-provisional.md`。
+- `firmware/AS5600-CAN`（作業ブランチ `wip/as5600-can`）はエンコーダの種類の**仮の形**（2026-11-16、ユーザ: 簡単でよい、仮と明記して今欲しい）。台帳に無く、処理は `src/enc.c` に閉じている（`make -C firmware/AS5600-CAN/test`）。`mascan_console` は作業ブランチ `wip/mascan-console`（実機確認前）。
 - MD のファーム: `firmware/CAN_MD` を CMake で **Release** でビルドする（Debug は FLASH に入らない）。コンパイラは `~/.local/share/stm32cube/bundles/gnu-tools-for-stm32/*/bin`。
 
 ## 書き方
