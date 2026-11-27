@@ -5,7 +5,6 @@ MAS CAN プロトコル v1 の再設計と、そのライブラリ・ファー�
 - 決定は台帳にだけ書く。検討は `docs/internal/notes/` に日付付きで書き、書いた後は直さない。未決は `docs/internal/decisions/open.md`。
 - 台帳と `docs/internal/notes/`、`docs/internal/archive/redesign/` は作者の私用。外部の人が読むのは `docs/spec/`（台帳から作った仕様書、2026-11-14〜）。**台帳、`lib/mas` の core のヘッダ、`node.h`、`node.c`、`host.cpp` を変えたら、同じコミットで `docs/spec/` を点検して直し、`python3 tools/spec_check.py --stamp` で記録する。** 引かない決定は `docs/spec/uncited.md` に理由を書く。仕組みは `docs/spec/README.md` の「保守」。
 - docs の置き場所は読む人で分ける（2026-11-15、ユーザ）: `docs/guide/` 利用者向けの案内、`docs/spec/` 仕様書、`docs/internal/` 作者と直す人のもの。地図は `docs/README.md`。**`docs/guide/` と `docs/spec/` の文書を書く前に `docs/internal/writing.md` を読む。** 案内の各ページは、頭の枠（読む人、前提、読むとできること、見せないもの、材料）に沿って書く。
-- ユーザは `docs/spec/` をスマホの artifact で読む（2026-11-14、ユーザ）。`docs/spec/` を直したら `python3 tools/spec_page.py <scratchpad>/mas-can-spec.html` で作り直し、同じ artifact に出し直す（中身を手で写さない）。
 - `docs/guide/` と `docs/spec/` は部の Wiki（wiki.syamei0.com の `MAS/MAS-CAN/guide/…`、`spec/…`、サイドバーの「MAS-CAN」）にも載せている（2026-11-16、ユーザ）。**Wiki は `main` から作る**（利用者が入れる公開の版に合わせる。ユーザ）。`python3 tools/wiki_sync.py <scratchpad>/wiki --upload --check`（ブランチの中身を読むので、コミットして push した後に）。`main` 以外から作る（`--from next`）と各ページの頭に「開発中の版」の付け札が出る。2026-11-16 の 1.1.0 から `main` で作っている。API キーは `~/.config/mas-can/wiki-token`。`MAS/MAS-CAN` そのもの（人が手で書いた要約）はスクリプトが触らない。置き換えるかは未決。
 
 ## 主制御側のライブラリ
